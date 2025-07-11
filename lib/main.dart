@@ -5,7 +5,7 @@ import 'package:appopreturn/firebase_options.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package.flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -52,7 +52,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     // Handle file sharing from other apps
-    ReceiveSharingIntent.getInitialMedia().then((List<SharedMediaFile> value) {
+    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
       if (value.isNotEmpty) {
         setState(() {
           _filePath = value.first.path;
@@ -61,7 +61,7 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     });
 
-    ReceiveSharingIntent.getMediaStream().listen((List<SharedMediaFile> value) {
+    ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
       if (value.isNotEmpty) {
         setState(() {
           _filePath = value.first.path;
