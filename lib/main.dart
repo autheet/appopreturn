@@ -54,9 +54,8 @@ class _MyHomePageState extends State<MyHomePage> {
     // The following is for handling files shared from other apps on mobile
     ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
       if (value.isNotEmpty) {
-        // Note: This provides a file path. Reading bytes from a path requires
-        // dart:io, which is not available on web. This logic is mobile-specific.
-        // For simplicity, we'll focus on the primary file drop/pick functionality.
+        // This logic is mobile-specific and requires dart:io.
+        // For this web-focused app, we'll rely on FilePicker and DropTarget.
       }
     });
 
@@ -107,11 +106,11 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
+      // Correctly call the cloud function for free users
       final HttpsCallable callable =
-          FirebaseFunctions.instance.httpsCallable('process_apreturn_request');
+          FirebaseFunctions.instance.httpsCallable('process_appopreturn_request_free');
       final result = await callable.call(<String, dynamic>{
         'digest': _digest,
-        'is_paying_user': false, // Change this based on your payment logic
       });
       setState(() {
         _transactionId = result.data['transaction_id'];
@@ -125,12 +124,29 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  void _reset() {
+    setState(() {
+      _fileName = null;
+      _digest = null;
+      _transactionId = null;
+      _loading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          if (_fileName != null)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _reset,
+              tooltip: 'Start Over',
+            ),
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -138,92 +154,121 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              const Icon(Icons.fingerprint, size: 60, color: Colors.blue),
-              const SizedBox(height: 20),
-              const Text(
-                'Apreturn',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Proof you had an idea first by creating a timestamped digest on the blockchain.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 30),
-              DropTarget(
-                onDragDone: (details) async {
-                  if (details.files.isNotEmpty) {
-                    final file = details.files.first;
-                    await _processFile(file.name, await file.readAsBytes());
-                  }
-                },
-                child: Container(
-                  height: 200,
-                  width: double.infinity,
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade400, width: 2),
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.grey.shade50,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Drop your file here', style: TextStyle(fontSize: 18, color: Colors.grey)),
-                      const SizedBox(height: 15),
-                      const Text('or', style: TextStyle(color: Colors.grey)),
-                      const SizedBox(height: 15),
-                      ElevatedButton.icon(
-                        onPressed: _selectFile,
-                        icon: const Icon(Icons.upload_file),
-                        label: const Text('Select File'),
-                      ),
-                    ],
-                  ),
+              if (_digest == null) ...[
+                const Icon(Icons.fingerprint, size: 60, color: Colors.blue),
+                const SizedBox(height: 20),
+                const Text(
+                  'Apreturn',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-              ),
-              const SizedBox(height: 30),
-              if (_loading) const CircularProgressIndicator(),
-              if (_digest != null) ...[
-                Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                const SizedBox(height: 10),
+                const Text(
+                  'Proof you had an idea first by creating a timestamped digest on the blockchain.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 30),
+                DropTarget(
+                  onDragDone: (details) async {
+                    if (details.files.isNotEmpty) {
+                      final file = details.files.first;
+                      await _processFile(file.name, await file.readAsBytes());
+                    }
+                  },
+                  child: Container(
+                    height: 200,
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400, width: 2),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey.shade50,
+                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('File: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 10),
-                        const Text('SHA-256 Digest:', style: TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 5),
-                        SelectableText(_digest!, style: const TextStyle(fontFamily: 'monospace', fontSize: 14)),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Keep your original file safe and unchanged. This digest is your proof of existence at this point in time.',
-                          style: TextStyle(fontStyle: FontStyle.italic, color: Colors.black54),
-                        ),
-                        const SizedBox(height: 20),
-                        Center(
-                          child: ElevatedButton(
-                            onPressed: _sendToBlockchain,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                            ),
-                            child: const Text('Send digest to Blockchain'),
-                          ),
+                        const Text('Drop your file here', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                        const SizedBox(height: 15),
+                        const Text('or', style: TextStyle(color: Colors.grey)),
+                        const SizedBox(height: 15),
+                        ElevatedButton.icon(
+                          onPressed: _selectFile,
+                          icon: const Icon(Icons.upload_file),
+                          label: const Text('Select File'),
                         ),
                       ],
                     ),
                   ),
                 ),
               ],
-              if (_transactionId != null) ...[
-                const SizedBox(height: 20),
-                const Text('Success! Transaction sent:', style: TextStyle(fontWeight: FontWeight.bold)),
-                SelectableText(_transactionId!),
+              if (_loading) const Padding(
+                padding: EdgeInsets.all(20.0),
+                child: CircularProgressIndicator(),
+              ),
+              if (_digest != null && !_loading) ...[
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text('File: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        const SizedBox(height: 15),
+                        const Text("Your file's unique digest:", style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 5),
+                        SelectableText(
+                          _digest!,
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 14, backgroundColor: Colors.black12),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'This digest is a cryptographic fingerprint of your file. To later prove you had the file, you must keep the file and this digest.',
+                          style: TextStyle(fontStyle: FontStyle.italic, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 20),
+                        const Divider(),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Ready to prove it?',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'For free, we will send this digest to the Bitcoin testnet4 blockchain. This creates a permanent, public timestamp.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        if (_transactionId == null)
+                          Center(
+                            child: ElevatedButton(
+                              onPressed: _sendToBlockchain,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                              ),
+                              child: const Text('Send to Blockchain'),
+                            ),
+                          ),
+                        if (_transactionId != null) ...[
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Success! Here is your Transaction ID:',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                            textAlign: TextAlign.center,
+                          ),
+                          SelectableText(
+                            _transactionId!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontFamily: 'monospace', fontSize: 14)
+                          ),
+                        ]
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ],
           ),

@@ -18,7 +18,6 @@
       "Dart-Code.dart-code"
       "ms-python.debugpy"
       "ms-python.python"
-      ""
     ];
     workspace = {
       # Runs when a workspace is first created with this `dev.nix` file
