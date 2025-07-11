@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.8.0-278.1.beta
+  sdk: '>=3.0.0 <4.0.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -36,9 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   receive_sharing_intent: ^1.4.5
   desktop_drop: ^0.4.0
-  file_picker: ^6.0.0
-  firebase_core: ^2.15.0
-  cloud_functions: ^4.3.0
+  file_picker: ^10.2.0
+  firebase_core: ^3.15.1
+  cloud_functions: ^5.6.1
   crypto: ^3.0.3
 
 dev_dependencies:

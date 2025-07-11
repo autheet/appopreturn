@@ -2,10 +2,10 @@ from firebase_functions import https_fn
 # Import your chosen Bitcoin library
 
 @https_fn.on_call(enforce_app_check=True) # Enforce App Check
-def process_apreturn_request(req: https_fn.CallableRequest) -> dict:
+def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     try:
         file_digest = req.data.get("digest")
-        is_paying_user = req.data.get("is_paying_user", False)
+        is_paying_user = False # this function is only for free users
 
         if not file_digest:
             raise https_fn.CallableException(
