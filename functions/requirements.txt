@@ -1,0 +1,4 @@
+firebase-functions
+firebase-admin
+# Add your chosen Bitcoin library, for example:
+# python-bitcoinlib
