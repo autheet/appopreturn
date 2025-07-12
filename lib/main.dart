@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:url_launcher/url_launcher.dart';
 // TODO: copy text possibility, privacy policy, sharing intent handling on mobiles.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,8 +85,15 @@ class _AppShellState extends State<AppShell> {
           ),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(
-            child: Center(
-              child: _widgetOptions.elementAt(_selectedIndex),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: _widgetOptions.elementAt(_selectedIndex),
+                  ),
+                ),
+                const Footer(),
+              ],
             ),
           ),
         ],
@@ -301,5 +309,20 @@ class _CreateProofPageState extends State<CreateProofPage> {
         Text('Network: $_network'),
       ]
     ];
+  }
+}
+
+class Footer extends StatelessWidget {
+  const Footer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: TextButton(
+        onPressed: () => launchUrl(Uri.parse('privacy_en.html')),
+        child: const Text('Privacy Policy'),
+      ),
+    );
   }
 }
