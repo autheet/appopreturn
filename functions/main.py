@@ -6,7 +6,16 @@ import logging
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from bit import PrivateKeyTestnet
-from Crypto.Hash import RIPEMD160 # Explicitly import RIPEMD160 to ensure it's available
+from Crypto.Hash import RIPEMD160
+
+# --- Force hashlib to recognize ripemd160 ---
+# This is a workaround for environments where OpenSSL doesn't include ripemd160.
+# We manually register the implementation from pycryptodome.
+try:
+    hashlib.new('ripemd160')
+except ValueError:
+    hashlib.register('ripemd160', RIPEMD160.new)
+# ---------------------------------------------
 
 # Load environment variables from .env file for local testing
 load_dotenv()
@@ -25,10 +34,6 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
     key = PrivateKeyTestnet(wif=private_key_wif)
     
     try:
-        # The following line is a workaround to ensure the hash is available.
-        # It won't be used directly in the transaction, but it forces the registration.
-        RIPEMD160.new()
-        
         tx_hash = key.send(
             outputs=[],
             message=digest,
