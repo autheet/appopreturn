@@ -1,11 +1,9 @@
-import hashlib
 import firebase_admin
 import logging
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
 from bit import PrivateKeyTestnet
-from Crypto.Hash import RIPEMD160
 
 # --- Initialize Firebase Admin SDK ---
 firebase_admin.initialize_app()
