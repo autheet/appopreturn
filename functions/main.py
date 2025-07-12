@@ -31,7 +31,7 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
         traceback.print_exc(file=sys.stderr)
         raise
 
-# --- UNTOUCHED CLOUD FUNCTION ---
+# --- CLOUD FUNCTION ---
 @https_fn.on_call(enforce_app_check=False)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
@@ -40,12 +40,22 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     try:
         file_digest = req.data.get("digest")
         if not file_digest:
-            raise https_fn.CallableException(https_fn.FunctionsErrorCode.INVALID_ARGUMENT, "Missing file digest.")
+            # Use HttpsError for client-facing errors
+            raise https_fn.HttpsError(
+                code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                message="Missing file digest."
+            )
         transaction_id = process_appopreturn_digest_to_blockchain(digest=file_digest)
         return {"transaction_id": transaction_id, "network": "testnet4"}
     except Exception as e:
-        raise https_fn.CallableException(https_fn.FunctionsErrorCode.INTERNAL, str(e))
-# --- END UNTOUCHED CLOUD FUNCTION ---
+        # Log the original exception for debugging
+        traceback.print_exc(file=sys.stderr)
+        # Re-raise exceptions as a generic internal error for the client
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.INTERNAL,
+            message="An internal error occurred."
+        )
+# --- END CLOUD FUNCTION ---
 
 
 def main():
