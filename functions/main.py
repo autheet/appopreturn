@@ -55,8 +55,6 @@ def main():
     hex_digest = hash_object.hexdigest()
 
     try:
-        # Silently ensure dependencies are installed
-        os.system(f"{sys.executable} -m pip install -r functions/requirements.txt --upgrade > /dev/null 2>&1")
         process_appopreturn_digest_to_blockchain(digest=hex_digest)
     except Exception:
         # Exit with a failure code on error. Traceback is printed from the inner function.
