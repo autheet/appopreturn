@@ -45,7 +45,7 @@ def process_appopreturn_digest_to_blockchain_bitcoinlib(digest: str) -> str:
     if not private_key_wif:
         raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
 
-    key = Key(wif=private_key_wif, network='testnet')
+    key = Key(private_key_wif, is_wif=True, network='testnet')
     print(f"Address to fund: {key.address}")
 
     # Create a new transaction
