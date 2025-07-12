@@ -2,12 +2,16 @@ import os
 import hashlib
 import sys
 import traceback
+import logging
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from bit import PrivateKeyTestnet
 
 # Load environment variables from .env file for local testing
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
 def process_appopreturn_digest_to_blockchain(digest: str) -> str:
     """
@@ -37,6 +41,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet4 blockchain.
     """
+    logging.info(f"Received request: {req.data}")
     try:
         file_digest = req.data.get("digest")
         if not file_digest:
@@ -45,10 +50,12 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
                 code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
                 message="Missing file digest."
             )
+        logging.info(f"Processing digest: {file_digest}")
         transaction_id = process_appopreturn_digest_to_blockchain(digest=file_digest)
         return {"transaction_id": transaction_id, "network": "testnet4"}
     except Exception as e:
         # Log the original exception for debugging
+        logging.error(f"An error occurred: {e}")
         traceback.print_exc(file=sys.stderr)
         # Re-raise exceptions as a generic internal error for the client
         raise https_fn.HttpsError(
