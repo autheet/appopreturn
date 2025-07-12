@@ -7,9 +7,9 @@ flutter_launcher_icons:
   background_color_ios: "#2063EB"
 
   # The WHITE silhouette icon with a TRANSPARENT background for Android notifications.
-  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_foreground: "web/icons/icon.png"
   adaptive_icon_background: "#00000000" # Transparent: adaptive_icon_background: "#00000000" (Use this if your foreground asset already includes a background shape).
-  adaptive_icon_monochrome: "assets/icon/app_icon_monochrome.png"
+  adaptive_icon_monochrome: "web/icons/icon_monochrome.png"
 
   # Optional: Web configuration
   web:
