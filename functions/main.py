@@ -76,7 +76,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         # Re-raise exceptions as a generic internal error for the client
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
-            message="An internal error occurred."
+            message=f"An internal error occurred: {e}"
         )
 # --- END CLOUD FUNCTION ---
 
