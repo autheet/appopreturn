@@ -3,6 +3,7 @@ import hashlib
 import sys
 import traceback
 import logging
+import firebase_admin
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from bit import PrivateKeyTestnet
@@ -10,12 +11,19 @@ from Crypto.Hash import RIPEMD160
 
 # --- Force hashlib to recognize ripemd160 ---
 # This is a workaround for environments where OpenSSL doesn't include ripemd160.
-# We manually register the implementation from pycryptodome.
+# We manually register the implementation from pycryptodome, as the 'bit'
+# library requires this hashing algorithm.
 try:
+    # Check if ripemd160 is natively supported
     hashlib.new('ripemd160')
 except ValueError:
+    # If not, register the implementation from pycryptodome
     hashlib.register('ripemd160', RIPEMD160.new)
 # ---------------------------------------------
+
+# --- Initialize Firebase Admin SDK ---
+firebase_admin.initialize_app()
+# -----------------------------------
 
 # Load environment variables from .env file for local testing
 load_dotenv()
