@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from firebase_functions import https_fn, params
 from bit import PrivateKeyTestnet
 from Crypto.Hash import RIPEMD160
+from firebase_functions.params import SecretParam
 
 # --- Initialize Firebase Admin SDK ---
 firebase_admin.initialize_app()
@@ -18,6 +19,9 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+
+# Define the secret parameter
+WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 
 def process_appopreturn_digest_to_blockchain(digest: str, private_key_wif: str) -> str:
     """
@@ -42,13 +46,13 @@ def process_appopreturn_digest_to_blockchain(digest: str, private_key_wif: str) 
 
 # --- CLOUD FUNCTION ---
 # The 'secrets' parameter tells Cloud Functions to grant access to the specified secret.
-@https_fn.on_call(secrets=["WALLET_PRIVATE_KEY"], enforce_app_check=False)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=False)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet4 blockchain.
     """
-    # Access the secret value from the params object provided by Cloud Functions.
-    private_key = params.WALLET_PRIVATE_KEY.value
+    # Access the secret value from the defined secret parameter
+    private_key = WALLET_PRIVATE_KEY.value()
 
     logging.info(f"Received request: {req.data}")
     try:
