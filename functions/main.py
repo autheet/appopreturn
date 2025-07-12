@@ -19,9 +19,11 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
 
     key = PrivateKeyTestnet(wif=private_key_wif)
     print(f"Address to fund: {key.segwit_address}")
+    print(key.get_balance('btc'))
+    print(key.balance)
     try:
         tx_hash = key.send(
-            outputs=[],
+            outputs=[(key.segwit_address, 1, 'satoshi')],
             message=digest,
             combine=False
         )
