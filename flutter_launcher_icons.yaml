@@ -1,0 +1,23 @@
+# flutter_launcher_icons.yaml
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "web/icons/icon.png" # IMPORTANT: Ensure this icon exists!
+  remove_alpha_ios: true # Optional: if you want iOS to handle transparency by removing it
+  background_color_ios: "#2063EB"
+
+  # The WHITE silhouette icon with a TRANSPARENT background for Android notifications.
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#00000000" # Transparent: adaptive_icon_background: "#00000000" (Use this if your foreground asset already includes a background shape).
+  adaptive_icon_monochrome: "assets/icon/app_icon_monochrome.png"
+
+  # Optional: Web configuration
+  web:
+    generate: true
+    image_path: "web/icons/icon.png" # Can be same as image_path
+    background_color: "#00000000"
+
+  # Optional: macOS configuration
+  # macos:
+  #   generate: true
+  #   image_path: "assets/icon/app_icon_macos.png" # Can be same as image_path
