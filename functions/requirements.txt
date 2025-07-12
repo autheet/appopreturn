@@ -4,3 +4,5 @@ firebase-functions
 bit
 # Keep dotenv for local testing with .env files
 python-dotenv
+# Add pycryptodome to provide ripemd160 hash
+pycryptodome
