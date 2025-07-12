@@ -6,6 +6,7 @@ import logging
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from bit import PrivateKeyTestnet
+from Crypto.Hash import RIPEMD160 # Explicitly import RIPEMD160 to ensure it's available
 
 # Load environment variables from .env file for local testing
 load_dotenv()
@@ -24,6 +25,10 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
     key = PrivateKeyTestnet(wif=private_key_wif)
     
     try:
+        # The following line is a workaround to ensure the hash is available.
+        # It won't be used directly in the transaction, but it forces the registration.
+        RIPEMD160.new()
+        
         tx_hash = key.send(
             outputs=[],
             message=digest,
