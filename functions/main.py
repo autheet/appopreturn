@@ -16,7 +16,6 @@ def process_appopreturn_digest_to_blockchain(digest: str, blockchain: str = 'tes
     if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest, re.IGNORECASE):
         raise ValueError("Invalid digest format. Must be a 64-character hex string.")
 
-    coin_symbol = 'bcy' if blockchain == 'testnet4' else 'btc'
     private_key = os.getenv("WALLET_PRIVATE_KEY")
     api_token = os.getenv("BLOCKCYPHER_API_TOKEN")
 
@@ -25,8 +24,7 @@ def process_appopreturn_digest_to_blockchain(digest: str, blockchain: str = 'tes
 
     # FIX: Specify the correct magicbyte for testnet (111) or mainnet (0).
     # This ensures the address derived from the private key matches the target blockchain.
-    magic_byte_for_address = 111 if coin_symbol == 'bcy' else 0
-    source_address = privkey_to_address(private_key, magicbyte=magic_byte_for_address)
+    source_address = privkey_to_address(private_key)
 
     print(f"Derived source address: {source_address}") # Debugging line
 
