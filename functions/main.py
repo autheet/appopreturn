@@ -5,10 +5,6 @@ import traceback
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from bit import PrivateKeyTestnet
-from pycoin.key.Key import Key
-from pycoin.coins.bitcoin.Tx import Tx, TxOut
-from pycoin.services import providers
-from pycoin.networks.registry import network_for_netcode
 
 # Load environment variables from .env file for local testing
 load_dotenv()
@@ -22,12 +18,16 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
         raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
 
     key = PrivateKeyTestnet(wif=private_key_wif)
-    print(f"Address to fund: {key.address}")
-    print(key.get_balance('btc'))
-    print(key.balance)
+    
+    # Provide both address types for compatibility with different faucets
+    print("Please fund either of the following testnet addresses:")
+    print(f"Legacy Address: {key.address}")
+    print(f"SegWit Address: {key.segwit_address}")
+    
+    print(f"Current balance: {key.get_balance('btc')}")
+
     try:
         tx_hash = key.send(
-            # outputs=[(key.address, 1, 'satoshi')],
             outputs=[],
             message=digest,
             combine=False
@@ -37,45 +37,6 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
         # Keep traceback for debugging purposes, but no other printing.
         traceback.print_exc(file=sys.stderr)
         raise
-
-def process_appopreturn_digest_to_blockchain_pycoin(digest: str) -> str:
-    """
-    Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output using pycoin.
-    """
-    private_key_wif = os.getenv("WALLET_PRIVATE_KEY")
-    if not private_key_wif:
-        raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
-
-    # Set the network to testnet
-    network = network_for_netcode("XTN")
-
-    key = network.parse.wif(private_key_wif)
-    print(f"Address to fund: {key.address()}")
-
-    # Get spendables for the address
-    spendables = providers.spendables_for_address(key.address(), "XTN")
-
-    # Create a new transaction
-    tx = Tx(version=1, tx_ins=[], tx_outs=[])
-
-    # Add the OP_RETURN output
-    op_return_script = "OP_RETURN " + digest
-    tx.tx_outs.append(TxOut(0, network.parse.script(op_return_script)))
-
-    # Add an input from the spendables
-    tx.tx_ins.append(spendables[0].tx_in())
-
-    # Add a change output if necessary
-    change_address = key.address()
-    tx.add_change_output(change_address, network)
-
-    # Sign the transaction
-    tx.sign([key])
-
-    # Broadcast the transaction
-    providers.broadcast_tx(tx)
-
-    return tx.id()
 
 # --- UNTOUCHED CLOUD FUNCTION ---
 @https_fn.on_call(enforce_app_check=True)
@@ -101,8 +62,7 @@ def main():
     hex_digest = hash_object.hexdigest()
 
     try:
-        # print(process_appopreturn_digest_to_blockchain(digest=hex_digest))
-        print(process_appopreturn_digest_to_blockchain_pycoin(digest=hex_digest))
+        print(process_appopreturn_digest_to_blockchain(digest=hex_digest))
     except Exception as e:
         print(e)
 
