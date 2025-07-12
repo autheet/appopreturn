@@ -1,1 +1,2 @@
 flutterfire configure
+firebase functions:secrets:set WALLET_PRIVATE_KEY

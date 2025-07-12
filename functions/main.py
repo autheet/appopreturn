@@ -89,11 +89,12 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
 def main():
     """
     A simple main function for local testing.
-    This now reads the key from the .env file.
+    This now reads the key from the .env file using a different name
+    to avoid conflicts with the deployment process.
     """
-    private_key_from_env = os.getenv("WALLET_PRIVATE_KEY")
+    private_key_from_env = os.getenv("LOCAL_WALLET_PRIVATE_KEY")
     if not private_key_from_env:
-        print("Error: WALLET_PRIVATE_KEY not found in .env file for local testing.", file=sys.stderr)
+        print("Error: LOCAL_WALLET_PRIVATE_KEY not found in .env file for local testing.", file=sys.stderr)
         return
         
     textencoded="""HelloWorld""".encode('utf-8')
