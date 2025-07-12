@@ -9,6 +9,7 @@
     pkgs.unzip
     pkgs.python313
     pkgs.python312
+    pkgs.python311
   ];
   # Sets environment variables in the workspace
   env = {};

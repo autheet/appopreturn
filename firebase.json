@@ -1,1 +1,6 @@
-{"functions":[{"source":"functions","codebase":"default","ignore":["venv",".git","firebase-debug.log","firebase-debug.*.log","*.local"],"runtime":"python312"}],"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"/api/**","function":"process_appopreturn_request_free"},{"source":"**","destination":"/index.html"}]},"flutter":{"platforms":{"android":{"default":{"projectId":"appopreturn-prod","appId":"1:316040241394:android:1f8a6a8dc5c3bc3470706b","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"appopreturn-prod","appId":"1:316040241394:ios:64c238ca08ed8db570706b","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"appopreturn-prod","configurations":{"android":"1:316040241394:android:1f8a6a8dc5c3bc3470706b","ios":"1:316040241394:ios:64c238ca08ed8db570706b","web":"1:316040241394:web:3dcf0eea5894ee9370706b"}}}}}}
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "python311"
+  }
+}
