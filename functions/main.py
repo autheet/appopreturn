@@ -23,43 +23,36 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 # Define the secret parameter
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 
-def process_appopreturn_digest_to_blockchain(digest: str, private_key_wif: str) -> str:
-    """
-    Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output.
-    """
-    if not private_key_wif:
-        raise ValueError("WALLET_PRIVATE_KEY was not provided.")
-
-    key = PrivateKeyTestnet(wif=private_key_wif)
-    
-    try:
-        tx_hash = key.send(
-            outputs=[],
-            message=digest,
-            combine=False
-        )
-        return tx_hash
-    except Exception as e:
-        # Keep traceback for debugging purposes, but no other printing.
-        traceback.print_exc(file=sys.stderr)
-        raise e
-
 # --- CLOUD FUNCTION ---
 @https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=False)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet4 blockchain.
     """
-    try:
-        # --- START DEBUG LOGGING ---
-        logging.info("--- DEBUGGING ---")
-        logging.info(f"Type of req.data: {type(req.data)}")
-        logging.info(f"Value of req.data: {req.data}")
-        logging.info(f"Type of WALLET_PRIVATE_KEY: {type(WALLET_PRIVATE_KEY)}")
-        logging.info("--- END DEBUGGING ---")
-        # --- END DEBUG LOGGING ---
+    def process_appopreturn_digest_to_blockchain(digest: str, private_key_wif: str) -> str:
+        """
+        Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output.
+        """
+        if not private_key_wif:
+            raise ValueError("WALLET_PRIVATE_KEY was not provided.")
 
-        private_key = WALLET_PRIVATE_KEY.value()
+        key = PrivateKeyTestnet(wif=private_key_wif)
+    
+        try:
+            tx_hash = key.send(
+                outputs=[],
+                message=digest,
+                combine=False
+            )
+            return tx_hash
+        except Exception as e:
+            # Keep traceback for debugging purposes, but no other printing.
+            traceback.print_exc(file=sys.stderr)
+            raise e
+
+    try:
+        # At this point inside the function, WALLET_PRIVATE_KEY is the secret's string value.
+        private_key = WALLET_PRIVATE_KEY
 
         file_digest = req.data.get("digest")
         if not file_digest:
@@ -87,27 +80,11 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         )
 # --- END CLOUD FUNCTION ---
 
-
 def main():
     """
     A simple main function for local testing.
     """
-    private_key_from_env = os.getenv("LOCAL_WALLET_PRIVATE_KEY")
-    if not private_key_from_env:
-        print("Error: LOCAL_WALLET_PRIVATE_KEY not found in .env file for local testing.", file=sys.stderr)
-        return
-        
-    textencoded="""HelloWorld""".encode('utf-8')
-    hash_object = hashlib.sha256(textencoded)
-    hex_digest = hash_object.hexdigest()
-
-    try:
-        print(process_appopreturn_digest_to_blockchain(
-            digest=hex_digest,
-            private_key_wif=private_key_from_env
-        ))
-    except Exception as e:
-        print(e)
+    print("Local testing of process_appopreturn_digest_to_blockchain is disabled because it is nested.")
 
 if __name__ == "__main__":
     main()
