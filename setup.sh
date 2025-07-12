@@ -1,5 +1,9 @@
+#!/bin/bash
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
 flutterfire configure
-gcloud projects add-iam-policy-binding appopreturn-prod \
-    --member="serviceAccount:appopreturn-prod@appspot.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor"
+
+echo "enter the secret, but without quotes!"
 firebase functions:secrets:set WALLET_PRIVATE_KEY
+
