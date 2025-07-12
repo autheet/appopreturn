@@ -2,3 +2,4 @@ firebase-functions
 firebase-admin
 blockcypher
 python-dotenv
+hashlib

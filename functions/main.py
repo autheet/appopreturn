@@ -110,3 +110,18 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         raise https_fn.CallableException(https_fn.FunctionsErrorCode.INTERNAL, "An internal error occurred.")
+
+
+def main():
+    textencoded="""HelloWorld""".encode('utf-8')
+    hash_object = hashlib.sha256(textencoded)
+    hex_digest = hash_object.hexdigest()
+
+    print(process_appopreturn_digest_to_blockchain(
+        digest=hex_digest,
+        blockchain='testnet4'
+    )
+    )
+
+if __name__ == "__main__":
+    main()
