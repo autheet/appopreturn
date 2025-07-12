@@ -1,4 +1,6 @@
+# Add the Firebase SDK for Python
 firebase-functions
-firebase-admin
-blockcypher
+# Add the bit library for bitcoin transactions
+bit
+# Keep dotenv for local testing with .env files
 python-dotenv
