@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
-
+// TODO: copy text possibility, privacy 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
