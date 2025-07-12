@@ -55,10 +55,9 @@ def main():
     hex_digest = hash_object.hexdigest()
 
     try:
-        process_appopreturn_digest_to_blockchain(digest=hex_digest)
-    except Exception:
-        # Exit with a failure code on error. Traceback is printed from the inner function.
-        sys.exit(1)
+        print(process_appopreturn_digest_to_blockchain(digest=hex_digest))
+    except Exception as e:
+        print(e)
 
 if __name__ == "__main__":
     main()
