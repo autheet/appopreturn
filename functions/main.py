@@ -5,9 +5,10 @@ import traceback
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from bit import PrivateKeyTestnet
-from bitcoinlib.wallets import Wallet
-from bitcoinlib.keys import Key
-from bitcoinlib.transactions import Transaction
+from pycoin.key.Key import Key
+from pycoin.coins.bitcoin.Tx import Tx, TxOut
+from pycoin.services import providers
+from pycoin.networks.registry import network_for_netcode
 
 # Load environment variables from .env file for local testing
 load_dotenv()
@@ -37,40 +38,44 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
         traceback.print_exc(file=sys.stderr)
         raise
 
-def process_appopreturn_digest_to_blockchain_bitcoinlib(digest: str) -> str:
+def process_appopreturn_digest_to_blockchain_pycoin(digest: str) -> str:
     """
-    Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output using bitcoinlib.
+    Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output using pycoin.
     """
     private_key_wif = os.getenv("WALLET_PRIVATE_KEY")
     if not private_key_wif:
         raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
 
-    key = Key(private_key_wif, is_wif=True, network='testnet')
-    print(f"Address to fund: {key.address}")
+    # Set the network to testnet
+    network = network_for_netcode("XTN")
+
+    key = network.parse.wif(private_key_wif)
+    print(f"Address to fund: {key.address()}")
+
+    # Get spendables for the address
+    spendables = providers.spendables_for_address(key.address(), "XTN")
 
     # Create a new transaction
-    tx = Transaction(network='testnet')
+    tx = Tx(version=1, tx_ins=[], tx_outs=[])
 
     # Add the OP_RETURN output
-    tx.add_op_return(digest.encode('utf-8'))
+    op_return_script = "OP_RETURN " + digest
+    tx.tx_outs.append(TxOut(0, network.parse.script(op_return_script)))
 
-    # Get UTXOs for the address
-    utxos = Wallet(private_key_wif).get_utxos()
-
-    # Add an input from the UTXOs
-    tx.add_input(utxos[0])
+    # Add an input from the spendables
+    tx.tx_ins.append(spendables[0].tx_in())
 
     # Add a change output if necessary
-    change_address = key.address
-    tx.add_change_output(change_address)
+    change_address = key.address()
+    tx.add_change_output(change_address, network)
 
     # Sign the transaction
-    tx.sign(key)
+    tx.sign([key])
 
     # Broadcast the transaction
-    tx.send()
+    providers.broadcast_tx(tx)
 
-    return tx.txid
+    return tx.id()
 
 # --- UNTOUCHED CLOUD FUNCTION ---
 @https_fn.on_call(enforce_app_check=True)
@@ -97,7 +102,7 @@ def main():
 
     try:
         # print(process_appopreturn_digest_to_blockchain(digest=hex_digest))
-        print(process_appopreturn_digest_to_blockchain_bitcoinlib(digest=hex_digest))
+        print(process_appopreturn_digest_to_blockchain_pycoin(digest=hex_digest))
     except Exception as e:
         print(e)
 
