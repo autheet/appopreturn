@@ -1,18 +1,17 @@
-import firebase_admin
 import logging
+import traceback
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
 from bit import PrivateKeyTestnet
 
-# --- Initialize Firebase Admin SDK ---
-firebase_admin.initialize_app()
-# -----------------------------------
+
 
 # Load environment variables from .env file FOR LOCAL TESTING ONLY
 # load_dotenv()
 
-# Define the secret parameter using the standard pattern
+# Define the secret parameter. The Firebase runtime will populate this
+# variable with the secret's string value at runtime.
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 
 
@@ -30,12 +29,14 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
                 message="Missing file digest."
             )
         
-        # Access the secret's value using the canonical .value() method
-        # and clean it of any potential whitespace.
-        private_key_string = WALLET_PRIVATE_KEY.value()
+        # Access the secret's value as an attribute.
+        private_key_string = WALLET_PRIVATE_KEY.value
         
-        # Create the key object and send the transaction
-        tx_hash = PrivateKeyTestnet(wif=private_key_string).send(
+        # Create the key object
+        key = PrivateKeyTestnet(wif=private_key_string)
+        
+        # Create, sign, and broadcast the transaction
+        tx_hash = key.send(
             outputs=[],
             message=file_digest,
             combine=False
@@ -45,8 +46,9 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         return {"transaction_id": tx_hash, "network": "testnet4"}
         
     except Exception as e:
-        # Log the full error for debugging
+        # Log the full error for debugging, including stack trace
         logging.error(f"Caught unhandled exception: {e}")
+        logging.error(traceback.format_exc()) # Log the full stack trace
         raise https_fn.HttpsError(
             code=https_fn.FunctionsErrorCode.INTERNAL,
             message=f"An internal error occurred: {e}"
