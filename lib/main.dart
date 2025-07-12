@@ -105,6 +105,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
   String? _fileName;
   String? _digest;
   String? _transactionId;
+  String? _network;
   bool _loading = false;
 
   Future<void> _processFile(String name, Uint8List bytes) async {
@@ -113,6 +114,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
       _loading = true;
       _digest = null;
       _transactionId = null;
+      _network = null;
     });
 
     try {
@@ -145,6 +147,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
       final result = await callable.call(<String, dynamic>{'digest': _digest});
       setState(() {
         _transactionId = result.data['transaction_id'];
+        _network = result.data['network'];
       });
     } catch (e) {
       print('Error sending to blockchain: $e');
@@ -160,6 +163,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
       _fileName = null;
       _digest = null;
       _transactionId = null;
+      _network = null;
       _loading = false;
     });
   }
@@ -274,7 +278,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
         ElevatedButton.icon(
           onPressed: _sendToBlockchain,
           icon: const Icon(Icons.security),
-          label: const Text('Notarize on Blockchain'),
+          label: const Text('Notarize'),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orangeAccent,
             foregroundColor: Colors.white,
@@ -293,6 +297,8 @@ class _CreateProofPageState extends State<CreateProofPage> {
           _transactionId!,
           style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
         ),
+        const SizedBox(height: 8),
+        Text('Network: $_network'),
       ]
     ];
   }
