@@ -9,15 +9,6 @@ from firebase_functions import https_fn, params
 from bit import PrivateKeyTestnet
 from Crypto.Hash import RIPEMD160
 
-# --- Force hashlib to recognize ripemd160 ---
-# This is a workaround for environments where OpenSSL doesn't include ripemd160.
-# We manually register the implementation from pycryptodome.
-try:
-    hashlib.new('ripemd160')
-except ValueError:
-    hashlib.register('ripemd160', RIPEMD160.new)
-# ---------------------------------------------
-
 # --- Initialize Firebase Admin SDK ---
 firebase_admin.initialize_app()
 # -----------------------------------
