@@ -18,7 +18,7 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
         raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
 
     key = PrivateKeyTestnet(wif=private_key_wif)
-    
+    print(f"Address to fund: {key.segwit_address}")
     try:
         tx_hash = key.send(
             outputs=[],
