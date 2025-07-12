@@ -1,6 +1,1 @@
-{
-  "functions": {
-    "source": "functions",
-    "runtime": "python313"
-  }
-}
+{"functions":{"source":"functions","runtime":"python313"},"flutter":{"platforms":{"android":{"default":{"projectId":"appopreturn-prod","appId":"1:316040241394:android:1f8a6a8dc5c3bc3470706b","fileOutput":"android/app/google-services.json"}}}}}
