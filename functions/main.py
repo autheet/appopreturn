@@ -5,6 +5,9 @@ import traceback
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from bit import PrivateKeyTestnet
+from bitcoinlib.wallets import Wallet
+from bitcoinlib.keys import Key
+from bitcoinlib.transactions import Transaction
 
 # Load environment variables from .env file for local testing
 load_dotenv()
@@ -18,12 +21,13 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
         raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
 
     key = PrivateKeyTestnet(wif=private_key_wif)
-    print(f"Address to fund: {key.segwit_address}")
+    print(f"Address to fund: {key.address}")
     print(key.get_balance('btc'))
     print(key.balance)
     try:
         tx_hash = key.send(
-            outputs=[(key.segwit_address, 1, 'satoshi')],
+            # outputs=[(key.address, 1, 'satoshi')],
+            outputs=[],
             message=digest,
             combine=False
         )
@@ -32,6 +36,41 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
         # Keep traceback for debugging purposes, but no other printing.
         traceback.print_exc(file=sys.stderr)
         raise
+
+def process_appopreturn_digest_to_blockchain_bitcoinlib(digest: str) -> str:
+    """
+    Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output using bitcoinlib.
+    """
+    private_key_wif = os.getenv("WALLET_PRIVATE_KEY")
+    if not private_key_wif:
+        raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
+
+    key = Key(wif=private_key_wif, network='testnet')
+    print(f"Address to fund: {key.address}")
+
+    # Create a new transaction
+    tx = Transaction(network='testnet')
+
+    # Add the OP_RETURN output
+    tx.add_op_return(digest.encode('utf-8'))
+
+    # Get UTXOs for the address
+    utxos = Wallet(private_key_wif).get_utxos()
+
+    # Add an input from the UTXOs
+    tx.add_input(utxos[0])
+
+    # Add a change output if necessary
+    change_address = key.address
+    tx.add_change_output(change_address)
+
+    # Sign the transaction
+    tx.sign(key)
+
+    # Broadcast the transaction
+    tx.send()
+
+    return tx.txid
 
 # --- UNTOUCHED CLOUD FUNCTION ---
 @https_fn.on_call(enforce_app_check=True)
@@ -57,7 +96,8 @@ def main():
     hex_digest = hash_object.hexdigest()
 
     try:
-        print(process_appopreturn_digest_to_blockchain(digest=hex_digest))
+        # print(process_appopreturn_digest_to_blockchain(digest=hex_digest))
+        print(process_appopreturn_digest_to_blockchain_bitcoinlib(digest=hex_digest))
     except Exception as e:
         print(e)
 

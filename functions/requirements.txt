@@ -4,3 +4,5 @@ firebase-functions
 bit
 # Keep dotenv for local testing with .env files
 python-dotenv
+# Add the bitcoinlib library for bitcoin transactions
+bitcoinlib
