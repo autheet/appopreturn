@@ -5,19 +5,16 @@ import traceback
 import logging
 import firebase_admin
 from dotenv import load_dotenv
-from firebase_functions import https_fn
+from firebase_functions import https_fn, params
 from bit import PrivateKeyTestnet
 from Crypto.Hash import RIPEMD160
 
 # --- Force hashlib to recognize ripemd160 ---
 # This is a workaround for environments where OpenSSL doesn't include ripemd160.
-# We manually register the implementation from pycryptodome, as the 'bit'
-# library requires this hashing algorithm.
+# We manually register the implementation from pycryptodome.
 try:
-    # Check if ripemd160 is natively supported
     hashlib.new('ripemd160')
 except ValueError:
-    # If not, register the implementation from pycryptodome
     hashlib.register('ripemd160', RIPEMD160.new)
 # ---------------------------------------------
 
@@ -25,19 +22,18 @@ except ValueError:
 firebase_admin.initialize_app()
 # -----------------------------------
 
-# Load environment variables from .env file for local testing
+# Load environment variables from .env file FOR LOCAL TESTING ONLY
 load_dotenv()
 
 # Configure logging
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
-def process_appopreturn_digest_to_blockchain(digest: str) -> str:
+def process_appopreturn_digest_to_blockchain(digest: str, private_key_wif: str) -> str:
     """
     Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output.
     """
-    private_key_wif = os.getenv("WALLET_PRIVATE_KEY")
     if not private_key_wif:
-        raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
+        raise ValueError("WALLET_PRIVATE_KEY was not provided.")
 
     key = PrivateKeyTestnet(wif=private_key_wif)
     
@@ -54,11 +50,15 @@ def process_appopreturn_digest_to_blockchain(digest: str) -> str:
         raise
 
 # --- CLOUD FUNCTION ---
-@https_fn.on_call(enforce_app_check=False)
+# The 'secrets' parameter tells Cloud Functions to grant access to the specified secret.
+@https_fn.on_call(secrets=["WALLET_PRIVATE_KEY"], enforce_app_check=False)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet4 blockchain.
     """
+    # Access the secret value from the params object provided by Cloud Functions.
+    private_key = params.WALLET_PRIVATE_KEY.value
+
     logging.info(f"Received request: {req.data}")
     try:
         file_digest = req.data.get("digest")
@@ -69,7 +69,10 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
                 message="Missing file digest."
             )
         logging.info(f"Processing digest: {file_digest}")
-        transaction_id = process_appopreturn_digest_to_blockchain(digest=file_digest)
+        transaction_id = process_appopreturn_digest_to_blockchain(
+            digest=file_digest,
+            private_key_wif=private_key
+        )
         return {"transaction_id": transaction_id, "network": "testnet4"}
     except Exception as e:
         # Log the original exception for debugging
@@ -84,13 +87,24 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
 
 
 def main():
-    """A simple main function for local testing. No output on success."""
+    """
+    A simple main function for local testing.
+    This now reads the key from the .env file.
+    """
+    private_key_from_env = os.getenv("WALLET_PRIVATE_KEY")
+    if not private_key_from_env:
+        print("Error: WALLET_PRIVATE_KEY not found in .env file for local testing.", file=sys.stderr)
+        return
+        
     textencoded="""HelloWorld""".encode('utf-8')
     hash_object = hashlib.sha256(textencoded)
     hex_digest = hash_object.hexdigest()
 
     try:
-        print(process_appopreturn_digest_to_blockchain(digest=hex_digest))
+        print(process_appopreturn_digest_to_blockchain(
+            digest=hex_digest,
+            private_key_wif=private_key_from_env
+        ))
     except Exception as e:
         print(e)
 
