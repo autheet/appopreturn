@@ -24,9 +24,9 @@ android {
 
     defaultConfig {
         applicationId = "com.autheet.appopreturn"
-        minSdk = flutter.minSdkVersion
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        versionCode = flutter.versionCode.toInt()
         versionName = flutter.versionName
     }
 
