@@ -4,16 +4,35 @@ import 'package:appopreturn/firebase_options.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:url_launcher/url_launcher.dart';
 // TODO: copy text possibility, privacy policy, sharing intent handling on mobiles.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Use the debug provider in debug mode, and the production providers in release mode.
+  if (kDebugMode) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.debug,
+      webProvider: ReCaptchaV3Provider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
+    );
+  } else {
+    await FirebaseAppCheck.instance.activate(
+      webProvider: ReCaptchaEnterpriseProvider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
+      androidProvider: AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.appAttest,
+    );
+  }
+  
   runApp(const AppOpReturn());
 }
 
@@ -63,7 +82,7 @@ class _AppShellState extends State<AppShell> {
               });
             },
             labelType: NavigationRailLabelType.all,
-            leading: const FlutterLogo(size: 40),
+            leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
             destinations: const <NavigationRailDestination>[
               NavigationRailDestination(
                 icon: Icon(Icons.add_box_outlined),
@@ -84,8 +103,15 @@ class _AppShellState extends State<AppShell> {
           ),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(
-            child: Center(
-              child: _widgetOptions.elementAt(_selectedIndex),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: _widgetOptions.elementAt(_selectedIndex),
+                  ),
+                ),
+                const Footer(),
+              ],
             ),
           ),
         ],
@@ -105,6 +131,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
   String? _fileName;
   String? _digest;
   String? _transactionId;
+  String? _network;
   bool _loading = false;
 
   Future<void> _processFile(String name, Uint8List bytes) async {
@@ -113,6 +140,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
       _loading = true;
       _digest = null;
       _transactionId = null;
+      _network = null;
     });
 
     try {
@@ -145,6 +173,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
       final result = await callable.call(<String, dynamic>{'digest': _digest});
       setState(() {
         _transactionId = result.data['transaction_id'];
+        _network = result.data['network'];
       });
     } catch (e) {
       print('Error sending to blockchain: $e');
@@ -160,6 +189,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
       _fileName = null;
       _digest = null;
       _transactionId = null;
+      _network = null;
       _loading = false;
     });
   }
@@ -274,7 +304,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
         ElevatedButton.icon(
           onPressed: _sendToBlockchain,
           icon: const Icon(Icons.security),
-          label: const Text('Notarize on Blockchain'),
+          label: const Text('Notarize'),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orangeAccent,
             foregroundColor: Colors.white,
@@ -293,7 +323,24 @@ class _CreateProofPageState extends State<CreateProofPage> {
           _transactionId!,
           style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
         ),
+        const SizedBox(height: 8),
+        Text('Network: $_network'),
       ]
     ];
+  }
+}
+
+class Footer extends StatelessWidget {
+  const Footer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: TextButton(
+        onPressed: () => launchUrl(Uri.parse('privacy_en.html')),
+        child: const Text('Privacy Policy'),
+      ),
+    );
   }
 }

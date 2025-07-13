@@ -8,7 +8,8 @@
     pkgs.jdk17
     pkgs.unzip
     pkgs.python313
-    pkgs.cope
+    pkgs.python312
+    pkgs.python311
   ];
   # Sets environment variables in the workspace
   env = {};

@@ -1,105 +1,65 @@
-import os
-import hashlib
-import sys
+import firebase_admin
+import logging
 import traceback
+import os
 from dotenv import load_dotenv
 from firebase_functions import https_fn
-from bit import PrivateKeyTestnet
-from bitcoinlib.wallets import Wallet
-from bitcoinlib.keys import Key
-from bitcoinlib.transactions import Transaction
+from firebase_functions.params import SecretParam
+
+# Import the library and the specific module we need to patch
+from bit import PrivateKeyTestnet, crypto
+from Crypto.Hash import RIPEMD160
+
+# --- Targeted Patch for ripemd160 in the 'bit' library ---
+# The Google Cloud Functions environment lacks native ripemd160 support.
+# The 'bit' library imports hashlib.new once at startup. To fix this,
+# we replace the 'new' function *within the bit.crypto module* with our own
+# version that can handle ripemd160.
+
+# Store the original 'new' function from the bit.crypto module
+_original_bit_crypto_new = crypto.new
+
+def _patched_bit_crypto_new(name, data=b''):
+    """A patched version of 'new' that supports ripemd160."""
+    if name == 'ripemd160':
+        return RIPEMD160.new(data)
+    # For all other hashes, use the library's original function
+    return _original_bit_crypto_new(name, data)
+
+# Apply the patch directly to the module that uses it
+crypto.new = _patched_bit_crypto_new
+# ----------------------------------------------------------
+
 
 # Load environment variables from .env file for local testing
-load_dotenv()
+# load_dotenv()
 
-def process_appopreturn_digest_to_blockchain(digest: str) -> str:
-    """
-    Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output.
-    """
-    private_key_wif = os.getenv("WALLET_PRIVATE_KEY")
-    if not private_key_wif:
-        raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
+WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 
-    key = PrivateKeyTestnet(wif=private_key_wif)
-    print(f"Address to fund: {key.address}")
-    print(key.get_balance('btc'))
-    print(key.balance)
-    try:
-        tx_hash = key.send(
-            # outputs=[(key.address, 1, 'satoshi')],
-            outputs=[],
-            message=digest,
-            combine=False
-        )
-        return tx_hash
-    except Exception:
-        # Keep traceback for debugging purposes, but no other printing.
-        traceback.print_exc(file=sys.stderr)
-        raise
 
-def process_appopreturn_digest_to_blockchain_bitcoinlib(digest: str) -> str:
-    """
-    Creates and broadcasts a Bitcoin Testnet transaction with an OP_RETURN output using bitcoinlib.
-    """
-    private_key_wif = os.getenv("WALLET_PRIVATE_KEY")
-    if not private_key_wif:
-        raise ValueError("WALLET_PRIVATE_KEY environment variable not set.")
-
-    key = Key(private_key_wif, is_wif=True, network='testnet')
-    print(f"Address to fund: {key.address}")
-
-    # Create a new transaction
-    tx = Transaction(network='testnet')
-
-    # Add the OP_RETURN output
-    tx.add_op_return(digest.encode('utf-8'))
-
-    # Get UTXOs for the address
-    utxos = Wallet(private_key_wif).get_utxos()
-
-    # Add an input from the UTXOs
-    tx.add_input(utxos[0])
-
-    # Add a change output if necessary
-    change_address = key.address
-    tx.add_change_output(change_address)
-
-    # Sign the transaction
-    tx.sign(key)
-
-    # Broadcast the transaction
-    tx.send()
-
-    return tx.txid
-
-# --- UNTOUCHED CLOUD FUNCTION ---
-@https_fn.on_call(enforce_app_check=True)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=False)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
-    Handles requests from free users for the testnet4 blockchain.
+    Handles requests from free users for the testnet blockchain.
     """
     try:
         file_digest = req.data.get("digest")
         if not file_digest:
-            raise https_fn.CallableException(https_fn.FunctionsErrorCode.INVALID_ARGUMENT, "Missing file digest.")
-        transaction_id = process_appopreturn_digest_to_blockchain(digest=file_digest)
-        return {"transaction_id": transaction_id, "network": "testnet4"}
+            raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INVALID_ARGUMENT, "Missing file digest.")
+        
+        private_key_string = WALLET_PRIVATE_KEY.value
+        
+        # The 'bit' library automatically handles UTXO selection, fees, and change.
+        key = PrivateKeyTestnet(wif=private_key_string)
+        
+        tx_hash = key.send(
+            outputs=[],
+            message=file_digest,
+            combine=False # We are providing a single message
+        )
+        
+        return {"transaction_id": tx_hash, "network": "testnet"}
+
     except Exception as e:
-        raise https_fn.CallableException(https_fn.FunctionsErrorCode.INTERNAL, str(e))
-# --- END UNTOUCHED CLOUD FUNCTION ---
-
-
-def main():
-    """A simple main function for local testing. No output on success."""
-    textencoded="""HelloWorld""".encode('utf-8')
-    hash_object = hashlib.sha256(textencoded)
-    hex_digest = hash_object.hexdigest()
-
-    try:
-        # print(process_appopreturn_digest_to_blockchain(digest=hex_digest))
-        print(process_appopreturn_digest_to_blockchain_bitcoinlib(digest=hex_digest))
-    except Exception as e:
-        print(e)
-
-if __name__ == "__main__":
-    main()
+        logging.error(f"Caught unhandled exception: {e}", exc_info=True)
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL, f"An internal error occurred: {e}")
