@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:appopreturn/firebase_options.dart';
@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main() async {
@@ -160,7 +159,6 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   @override
   void initState() {
     super.initState();
-    _initSharing();
     _breathingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -175,27 +173,6 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   void dispose() {
     _breathingController.dispose();
     super.dispose();
-  }
-
-  Future<void> _initSharing() async {
-    // Listen for shared media when the app is running
-    ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
-      if (value.isNotEmpty) {
-        _handleSharedFile(value.first);
-      }
-    });
-
-    // Handle shared media when the app was closed and is now starting up
-    final initialMedia = await ReceiveSharingIntent.instance.getInitialMedia();
-    if (initialMedia.isNotEmpty) {
-      _handleSharedFile(initialMedia.first);
-    }
-  }
-  
-  Future<void> _handleSharedFile(SharedMediaFile file) async {
-    final fileName = file.path.split('/').last;
-    final bytes = await File(file.path).readAsBytes();
-    await _processData(fileName, bytes);
   }
 
   Future<void> _processData(String name, Uint8List bytes) async {
@@ -306,6 +283,36 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   }
 
    Widget _buildInitialWidgets({required Key key}) {
+    final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+
+    Widget dropZoneContent = Container(
+      height: 150,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300, width: 2),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey.shade50,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (isDesktop) ...[
+            const Text('Drop your file here'),
+            const SizedBox(height: 10),
+            const Text('or'),
+            const SizedBox(height: 10),
+          ] else ...[
+            const Text('Select a file to begin'),
+            const SizedBox(height: 16),
+          ],
+          ElevatedButton(
+            onPressed: _selectFile,
+            child: const Text('Select a File'),
+          ),
+        ],
+      ),
+    );
+
     return Column(
       key: key,
       mainAxisSize: MainAxisSize.min,
@@ -323,36 +330,18 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           style: TextStyle(fontSize: 16, color: Colors.black54),
         ),
         const SizedBox(height: 24),
-        DropTarget(
-          onDragDone: (details) async {
-            if (details.files.isNotEmpty) {
-              final file = details.files.first;
-              await _processData(file.name, await file.readAsBytes());
-            }
-          },
-          child: Container(
-            height: 150,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300, width: 2),
-              borderRadius: BorderRadius.circular(8),
-              color: Colors.grey.shade50,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('Drop your file here'),
-                const SizedBox(height: 10),
-                const Text('or'),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: _selectFile,
-                  child: const Text('Select a File'),
-                ),
-              ],
-            ),
-          ),
-        ),
+        if (isDesktop)
+          DropTarget(
+            onDragDone: (details) async {
+              if (details.files.isNotEmpty) {
+                final file = details.files.first;
+                await _processData(file.name, await file.readAsBytes());
+              }
+            },
+            child: dropZoneContent,
+          )
+        else
+          dropZoneContent,
       ],
     );
   }
