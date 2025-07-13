@@ -165,10 +165,12 @@ def main():
         # 3. Also attempt broadcast with 'bit' library as a secondary measure
         print("\nBroadcasting with 'bit' library...")
         try:
-            # CORRECTED: Use the public NetworkAPI.broadcast_tx method.
-            # This is the correct way to broadcast a raw transaction with 'bit'.
             NetworkAPI.broadcast_tx(raw_tx_hex)
-            print(f"  - 'bit' library broadcast sent successfully.")
+            # Calculate hash for display, as broadcast_tx doesn't return it
+            from bit.transaction import tx
+            tx_obj = Tx.from_hex(raw_tx_hex)
+            tx_hash_bit = tx_obj.hash
+            print(f"  - Success via 'bit' library! TXID: {tx_hash_bit}")
         except Exception as e:
             print(f"  - bit broadcast failed with an exception: {e}")
 
