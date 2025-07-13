@@ -43,7 +43,6 @@ dependencies:
   firebase_app_check: ^0.3.2+9
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.6
-  receive_sharing_intent: ^1.8.1
 
 dev_dependencies:
   flutter_test:
