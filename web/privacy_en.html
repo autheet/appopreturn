@@ -64,17 +64,17 @@
 
     <h2>3. Information We DO Collect and How We Use It</h2>
 
-    <p>To provide our service, we need to handle a minimal amount of data. Here is an exhaustive list of what we process:</p>
+    <p>To provide our service, we need to handle a minimal amount of data. Here is an exhaustive list of what we collect and store:</p>
     <ul>
-        <li><strong>Cryptographic Hash (Digest):</strong> When you select a file, our application calculates a <code>SHA-256</code> cryptographic hash of that file's content <em>locally on your device</em>. This hash is a unique, fixed-length string of characters that represents your file. It is a one-way process, meaning the original file content <strong>cannot</strong> be reverse-engineered from the hash.</li>
-        <li><strong>Usage of the Hash:</strong> We send only this anonymous hash to our secure backend service (Firebase Cloud Functions). The sole purpose of this action is to embed the hash into a transaction on a public blockchain (the Bitcoin Testnet). This creates a permanent, timestamped, and publicly verifiable proof that the data corresponding to that hash existed at a specific point in time.</li>
-        <li><strong>Transaction ID and Network:</strong> Our backend service returns a <code>transaction_id</code> and the <code>network</code> name (e.g., "testnet") upon successfully broadcasting the transaction. This information is displayed to you in the app for your records. We do not store this information on our servers.</li>
+        <li><strong>Cryptographic Hash (Digest):</strong> When you select a file, our application calculates a <code>SHA-256</code> cryptographic hash of the file's content <em>locally on your device</em>. This hash is a unique string of characters that represents your file but does not reveal its content.</li>
+        <li><strong>Storage and Usage of the Hash:</strong> We send this anonymous hash to our secure backend (Firebase Cloud Functions). We then store this hash in our Firestore database. The primary purpose of this is to embed the hash into a transaction on a public blockchain (the Bitcoin Testnet). This creates a permanent, timestamped proof of existence for the data corresponding to the hash. We also use the stored hash to prevent duplicate transactions for the same file, providing a more efficient service.</li>
+        <li><strong>Transaction and Timestamp Information:</strong> When a blockchain transaction is created for a new hash, we store the resulting <code>transaction_id</code> and a <code>server_timestamp</code> (the date and time of the transaction) in our database, linked to the corresponding hash. If you process the same file again, we will retrieve the existing transaction ID from our records.</li>
     </ul>
 
     <h2>4. Third-Party Services</h2>
 
     <ul>
-        <li><strong>Firebase (Google):</strong> We use Firebase Cloud Functions to process the notarization request. This involves securely transmitting the anonymous hash to Google's servers to execute the function. For more information, you can review <a href="https://policies.google.com/privacy" target="_blank">Google's Privacy Policy</a>.</li>
+        <li><strong>Firebase (Google):</strong> We use Firebase Cloud Functions and Firestore to process and store the notarization request. This involves securely transmitting the anonymous hash to Google's servers. For more information, you can review <a href="https://policies.google.com/privacy" target="_blank">Google's Privacy Policy</a>.</li>
         <li><strong>Public Blockchain:</strong> The hash of your file is permanently recorded on a public blockchain network. This is by design, as it is essential for providing a verifiable proof of existence. Information on public blockchains is accessible to everyone and cannot be altered or deleted.</li>
     </ul>
 

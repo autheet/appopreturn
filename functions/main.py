@@ -1,4 +1,5 @@
 import firebase_admin
+from firebase_admin import firestore
 import logging
 import traceback
 import os
@@ -34,6 +35,9 @@ crypto.new = _patched_bit_crypto_new
 # Load environment variables from .env file for local testing
 # load_dotenv()
 
+# Initialize Firebase Admin SDK
+firebase_admin.initialize_app()
+
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 
 
@@ -47,19 +51,37 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         if not file_digest:
             raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INVALID_ARGUMENT, "Missing file digest.")
         
-        private_key_string = WALLET_PRIVATE_KEY.value
-        
-        # The 'bit' library automatically handles UTXO selection, fees, and change.
-        key = PrivateKeyTestnet(wif=private_key_string)
+        db = firestore.client()
+        doc_ref = db.collection('digestdata_public').document(file_digest)
+        doc = doc_ref.get()
 
-        tx_hash = key.send(
-            outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
-                     ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
-            message=file_digest,
-            combine=False  # We are providing a single message
-        )
-        
-        return {"transaction_id": tx_hash, "network": "testnet3"}
+        if doc.exists:
+            doc_dict = doc.to_dict()
+            transaction_id = doc_dict.get('transaction_id')
+            network = doc_dict.get('network')
+            server_timestamp = doc_dict.get('server_timestamp')
+            return {"transaction_id": transaction_id, "network": network, "new_digest": False, 'server_timestamp': server_timestamp}
+        else:
+            private_key_string = WALLET_PRIVATE_KEY.value
+            
+            # The 'bit' library automatically handles UTXO selection, fees, and change.
+            key = PrivateKeyTestnet(wif=private_key_string)
+
+            tx_hash = key.send(
+                outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
+                         ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
+                message=file_digest,
+                combine=False  # We are providing a single message
+            )
+
+            # Storing the data in Firestore
+            doc_ref.set({
+                'server_timestamp': firestore.SERVER_TIMESTAMP,
+                'transaction_id': tx_hash,
+                'network': 'testnet3'
+            })
+            
+            return {"transaction_id": tx_hash, "network": "testnet3", "new_digest": True}
 
     except Exception as e:
         logging.error(f"Caught unhandled exception: {e}", exc_info=True)
