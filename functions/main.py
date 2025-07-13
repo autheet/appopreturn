@@ -7,9 +7,12 @@ import time
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
-
+import os
+from os.path import join, dirname
+from dotenv import load_dotenv
 # Import the library and the specific module we need to patch
 from bit import PrivateKeyTestnet, crypto
+import bit
 from Crypto.Hash import RIPEMD160
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
@@ -82,6 +85,15 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
                 message=file_digest,
                 combine=False  # We are providing a single message
             )
+            transaction = key.create_transaction(
+                outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
+                         ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
+                message=file_digest,
+                combine=False  # We are providing a single message
+
+            )
+
+
             blockchain_end_time = time.time()
             logging.info(f"Blockchain transaction took: {blockchain_end_time - blockchain_start_time:.4f} seconds")
 
@@ -107,20 +119,39 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL, f"An internal error occurred: {e}")
 
 def main():
-    load_dotenv()
-
+    dotenv_path = join(dirname(__file__), '.env')
+    load_dotenv(dotenv_path)
+    private_key_string = os.environ.get("LOCAL_WALLET_PRIVATE_KEY")
     file_digest = "test"
+
     # The 'bit' library automatically handles UTXO selection, fees, and change.
     key = PrivateKeyTestnet(wif=private_key_string)
+    testnet_key = PrivateKeyTestnet(wif=os.environ.get("BIT_WALLET_WIF_TESTNET"))
+    # key = testnet_key
     print(f"address: {key.address}")
     print(f"segwit address: {key.segwit_address}")
-    print(f"transactions: {key.transactions}")
+    print(f"transactions: {key.get_transactions()}")
+    print(f"unspents: {key.get_unspents()}")
+    print(f"balance: {key.get_balance()}")
+    print(f"balance: {key.balance}")
     tx_hash = key.send(
-        outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'), ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
+        # outputs=[("mt9tbtv1UDUwmQ5WmPzAnsuuYLKfn8JUfq", 1234, 'satoshi')],
+        outputs=[],
         message=file_digest,
-        combine=False  # We are providing a single message
+        combine=False,  # We are providing a single message
+        leftover="2NBPRA1B9EzMjDuoX9oxUFjE6G2KVYHxM44",
+        absolute_fee= 1000,
     )
+    print(f"transaction_id: {tx_hash}")
 
-    print(f"transaction_id: {tx_hash}, address: {key.address}")
+    ### generate private key testnet segwit:
+    testnet_key = PrivateKeyTestnet(wif=os.environ.get("BIT_WALLET_WIF_TESTNET"))
+    print(f"Testnet Key Address: {testnet_key.address}")
+    print(f"Testnet Key SegWit Address: {testnet_key.segwit_address}")
+    print(f"Testnet Key wif: {testnet_key.to_wif()}")
+    print(f"Testnet Key balance: {testnet_key.get_balance()}")
+    print(f"Testnet Key transactions: {testnet_key.get_transactions()}")
+
+
 if __name__ == "__main__":
     main()
