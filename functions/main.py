@@ -58,7 +58,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
             combine=False # We are providing a single message
         )
         
-        return {"transaction_id": tx_hash, "network": "testnet"}
+        return {"transaction_id": tx_hash, "network": "testnet3"}
 
     except Exception as e:
         logging.error(f"Caught unhandled exception: {e}", exc_info=True)

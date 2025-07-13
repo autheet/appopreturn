@@ -197,7 +197,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 500),
+      constraints: const BoxConstraints(maxWidth: 650),
       child: Card(
         elevation: 8.0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

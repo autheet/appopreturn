@@ -68,7 +68,7 @@
     <ul>
         <li><strong>Cryptographic Hash (Digest):</strong> When you select a file, our application calculates a <code>SHA-256</code> cryptographic hash of that file's content <em>locally on your device</em>. This hash is a unique, fixed-length string of characters that represents your file. It is a one-way process, meaning the original file content <strong>cannot</strong> be reverse-engineered from the hash.</li>
         <li><strong>Usage of the Hash:</strong> We send only this anonymous hash to our secure backend service (Firebase Cloud Functions). The sole purpose of this action is to embed the hash into a transaction on a public blockchain (the Bitcoin Testnet). This creates a permanent, timestamped, and publicly verifiable proof that the data corresponding to that hash existed at a specific point in time.</li>
-        <li><strong>Transaction ID and Network:</strong> Our backend service returns a <code>transaction_id</code> and the <code>network</code> name (e.g., "testnet4") upon successfully broadcasting the transaction. This information is displayed to you in the app for your records. We do not store this information on our servers.</li>
+        <li><strong>Transaction ID and Network:</strong> Our backend service returns a <code>transaction_id</code> and the <code>network</code> name (e.g., "testnet") upon successfully broadcasting the transaction. This information is displayed to you in the app for your records. We do not store this information on our servers.</li>
     </ul>
 
     <h2>4. Third-Party Services</h2>
