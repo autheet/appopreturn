@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:appopreturn/firebase_options.dart';
@@ -282,6 +283,36 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   }
 
    Widget _buildInitialWidgets({required Key key}) {
+    final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+
+    Widget dropZoneContent = Container(
+      height: 150,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300, width: 2),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey.shade50,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (isDesktop) ...[
+            const Text('Drop your file here'),
+            const SizedBox(height: 10),
+            const Text('or'),
+            const SizedBox(height: 10),
+          ] else ...[
+            const Text('Select a file to begin'),
+            const SizedBox(height: 16),
+          ],
+          ElevatedButton(
+            onPressed: _selectFile,
+            child: const Text('Select a File'),
+          ),
+        ],
+      ),
+    );
+
     return Column(
       key: key,
       mainAxisSize: MainAxisSize.min,
@@ -299,36 +330,18 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           style: TextStyle(fontSize: 16, color: Colors.black54),
         ),
         const SizedBox(height: 24),
-        DropTarget(
-          onDragDone: (details) async {
-            if (details.files.isNotEmpty) {
-              final file = details.files.first;
-              await _processData(file.name, await file.readAsBytes());
-            }
-          },
-          child: Container(
-            height: 150,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300, width: 2),
-              borderRadius: BorderRadius.circular(8),
-              color: Colors.grey.shade50,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('Drop your file here'),
-                const SizedBox(height: 10),
-                const Text('or'),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: _selectFile,
-                  child: const Text('Select a File'),
-                ),
-              ],
-            ),
-          ),
-        ),
+        if (isDesktop)
+          DropTarget(
+            onDragDone: (details) async {
+              if (details.files.isNotEmpty) {
+                final file = details.files.first;
+                await _processData(file.name, await file.readAsBytes());
+              }
+            },
+            child: dropZoneContent,
+          )
+        else
+          dropZoneContent,
       ],
     );
   }
