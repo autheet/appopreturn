@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:appopreturn/firebase_options.dart';
@@ -11,7 +13,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:url_launcher/url_launcher.dart';
-// TODO: copy text possibility, privacy policy, sharing intent handling on mobiles.
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -41,13 +43,31 @@ class AppOpReturn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Define the light theme based on the existing style
+    final lightTheme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.blue,
+        brightness: Brightness.light,
+      ),
+      useMaterial3: true,
+      scaffoldBackgroundColor: const Color(0xFFECEFF1),
+    );
+
+    // Define a corresponding dark theme
+    final darkTheme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.blue,
+        brightness: Brightness.dark,
+      ),
+      useMaterial3: true,
+      // Scaffold background will be dark by default with a dark color scheme
+    );
+
     return MaterialApp(
       title: 'AppOpReturn',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFECEFF1),
-      ),
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: ThemeMode.system, // This enables auto-switching
       home: const AppShell(),
     );
   }
@@ -127,14 +147,58 @@ class CreateProofPage extends StatefulWidget {
   State<CreateProofPage> createState() => _CreateProofPageState();
 }
 
-class _CreateProofPageState extends State<CreateProofPage> {
+class _CreateProofPageState extends State<CreateProofPage> with TickerProviderStateMixin {
   String? _fileName;
   String? _digest;
   String? _transactionId;
   String? _network;
   bool _loading = false;
+  
+  late final AnimationController _breathingController;
+  late final Animation<double> _breathingAnimation;
 
-  Future<void> _processFile(String name, Uint8List bytes) async {
+  @override
+  void initState() {
+    super.initState();
+    _initSharing();
+    _breathingController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    
+    _breathingAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut)
+    );
+  }
+
+  @override
+  void dispose() {
+    _breathingController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initSharing() async {
+    // Listen for shared media when the app is running
+    ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) {
+        _handleSharedFile(value.first);
+      }
+    });
+
+    // Handle shared media when the app was closed and is now starting up
+    final initialMedia = await ReceiveSharingIntent.instance.getInitialMedia();
+    if (initialMedia.isNotEmpty) {
+      _handleSharedFile(initialMedia.first);
+    }
+  }
+  
+  Future<void> _handleSharedFile(SharedMediaFile file) async {
+    final fileName = file.path.split('/').last;
+    final bytes = await File(file.path).readAsBytes();
+    await _processData(fileName, bytes);
+  }
+
+  Future<void> _processData(String name, Uint8List bytes) async {
     setState(() {
       _fileName = name;
       _loading = true;
@@ -160,7 +224,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
   Future<void> _selectFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(withData: true);
     if (result != null && result.files.single.bytes != null) {
-      await _processFile(result.files.single.name, result.files.single.bytes!);
+      await _processData(result.files.single.name, result.files.single.bytes!);
     }
   }
 
@@ -197,136 +261,166 @@ class _CreateProofPageState extends State<CreateProofPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 500),
+      constraints: const BoxConstraints(maxWidth: 650),
       child: Card(
         elevation: 8.0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              if (_digest == null) ..._buildInitialWidgets(),
-              if (_loading) const Padding(
-                padding: EdgeInsets.symmetric(vertical: 60.0),
-                child: CircularProgressIndicator(),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Animated Background Icon
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 500),
+              opacity: _digest != null ? 0.05 : 0.0, // Fades in when there's a result
+              child: ScaleTransition(
+                scale: _breathingAnimation,
+                child: const Icon(Icons.fingerprint, size: 250, color: Colors.blueAccent),
               ),
-              if (_digest != null && !_loading) ..._buildResultWidgets(),
-            ],
-          ),
+            ),
+            // Main Content
+            Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: _buildContent(),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-   List<Widget> _buildInitialWidgets() {
-    return [
-      const Icon(Icons.fingerprint, size: 50, color: Colors.blueAccent),
-      const SizedBox(height: 16),
-      const Text(
-        'Create a Proof of Existence',
-        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 8),
-      const Text(
-        'Select a file to generate a unique, timestamped digest on the blockchain.',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 16, color: Colors.black54),
-      ),
-      const SizedBox(height: 24),
-      DropTarget(
-        onDragDone: (details) async {
-          if (details.files.isNotEmpty) {
-            final file = details.files.first;
-            await _processFile(file.name, await file.readAsBytes());
-          }
-        },
-        child: Container(
-          height: 150,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300, width: 2),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.grey.shade50,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Drop your file here'),
-              const SizedBox(height: 10),
-              const Text('or'),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: _selectFile,
-                child: const Text('Select a File'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ];
+  Widget _buildContent() {
+    if (_loading) {
+      return const Padding(
+        key: ValueKey('loading'),
+        padding: EdgeInsets.symmetric(vertical: 60.0),
+        child: CircularProgressIndicator(),
+      );
+    }
+    if (_digest != null) {
+      return _buildResultWidgets(key: const ValueKey('results'));
+    }
+    return _buildInitialWidgets(key: const ValueKey('initial'));
   }
 
-  List<Widget> _buildResultWidgets() {
-    return [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Your Digital Proof',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: _reset,
-            tooltip: 'Start Over',
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      SelectableText('File: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
-      const SizedBox(height: 10),
-      const Text("Your file's unique digest:"),
-      const SizedBox(height: 5),
-      SelectableText(
-        _digest!,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 13, backgroundColor: Color(0xFFECEFF1)),
-      ),
-      const SizedBox(height: 16),
-      if (_transactionId == null) ...[
-        const Divider(height: 32),
+   Widget _buildInitialWidgets({required Key key}) {
+    return Column(
+      key: key,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.fingerprint, size: 50, color: Colors.blueAccent),
+        const SizedBox(height: 16),
         const Text(
-          'Ready to notarize this proof on the blockchain?',
+          'Create a Proof of Existence',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Select a file to generate a unique, timestamped digest on the blockchain.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16),
+          style: TextStyle(fontSize: 16, color: Colors.black54),
+        ),
+        const SizedBox(height: 24),
+        DropTarget(
+          onDragDone: (details) async {
+            if (details.files.isNotEmpty) {
+              final file = details.files.first;
+              await _processData(file.name, await file.readAsBytes());
+            }
+          },
+          child: Container(
+            height: 150,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300, width: 2),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey.shade50,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Drop your file here'),
+                const SizedBox(height: 10),
+                const Text('or'),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: _selectFile,
+                  child: const Text('Select a File'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResultWidgets({required Key key}) {
+    return Column(
+      key: key,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Your Digital Proof',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: _reset,
+              tooltip: 'Start Over',
+            ),
+          ],
         ),
         const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: _sendToBlockchain,
-          icon: const Icon(Icons.security),
-          label: const Text('Notarize'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orangeAccent,
-            foregroundColor: Colors.white,
-          ),
-        ),
-      ] else ...[
-        const Divider(height: 32),
-        const Text(
-          'Success!',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
-        ),
-        const SizedBox(height: 8),
-        const Text('Your proof is permanently recorded. Here is the Transaction ID:'),
+        SelectableText('Source: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        const Text("Your data's unique digest:"),
         const SizedBox(height: 5),
         SelectableText(
-          _transactionId!,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          _digest!,
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 13, backgroundColor: Color(0xFFECEFF1)),
         ),
-        const SizedBox(height: 8),
-        SelectableText('Network: $_network'),
-      ]
-    ];
+        const SizedBox(height: 16),
+        if (_transactionId == null) ...[
+          const Divider(height: 32),
+          const Text(
+            'Ready to notarize this proof on the blockchain?',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _sendToBlockchain,
+            icon: const Icon(Icons.security),
+            label: const Text('Notarize'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orangeAccent,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ] else ...[
+          const Divider(height: 32),
+          const Text(
+            'Success!',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+          ),
+          const SizedBox(height: 8),
+          const Text('Your proof is permanently recorded. Here is the Transaction ID:'),
+          const SizedBox(height: 5),
+          SelectableText(
+            _transactionId!,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          SelectableText('Network: $_network'),
+        ]
+      ],
+    );
   }
 }
 
