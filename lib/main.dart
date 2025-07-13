@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:appopreturn/firebase_options.dart';
@@ -11,7 +13,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:url_launcher/url_launcher.dart';
-// TODO: copy text possibility, privacy policy, sharing intent handling on mobiles.
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -41,13 +43,31 @@ class AppOpReturn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Define the light theme based on the existing style
+    final lightTheme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.blue,
+        brightness: Brightness.light,
+      ),
+      useMaterial3: true,
+      scaffoldBackgroundColor: const Color(0xFFECEFF1),
+    );
+
+    // Define a corresponding dark theme
+    final darkTheme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.blue,
+        brightness: Brightness.dark,
+      ),
+      useMaterial3: true,
+      // Scaffold background will be dark by default with a dark color scheme
+    );
+
     return MaterialApp(
       title: 'AppOpReturn',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFECEFF1),
-      ),
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: ThemeMode.system, // This enables auto-switching
       home: const AppShell(),
     );
   }
@@ -140,6 +160,7 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   @override
   void initState() {
     super.initState();
+    _initSharing();
     _breathingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -156,7 +177,40 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
     super.dispose();
   }
 
-  Future<void> _processFile(String name, Uint8List bytes) async {
+  Future<void> _initSharing() async {
+    // Listen for shared media (files, text, etc.) when the app is running
+    // Use the .instance singleton to access the stream
+    ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) {
+        _handleSharedData(value.first);
+      }
+    });
+
+    // Handle shared media when the app was closed and is now starting up
+    // Use the .instance singleton to get the initial media
+    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) {
+        _handleSharedData(value.first);
+      }
+    });
+  }
+  
+  Future<void> _handleSharedData(SharedMediaFile data) async {
+    // The package now correctly differentiates text from files.
+    // For text, the content is in the 'path' property.
+    if (data.type == SharedMediaType.text) {
+      final bytes = utf8.encode(data.path);
+      await _processData("Shared Text", bytes);
+    } 
+    // For files, we need to read the bytes from the path.
+    else {
+      final fileName = data.path.split('/').last;
+      final bytes = await File(data.path).readAsBytes();
+      await _processData(fileName, bytes);
+    }
+  }
+
+  Future<void> _processData(String name, Uint8List bytes) async {
     setState(() {
       _fileName = name;
       _loading = true;
@@ -182,7 +236,7 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   Future<void> _selectFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(withData: true);
     if (result != null && result.files.single.bytes != null) {
-      await _processFile(result.files.single.name, result.files.single.bytes!);
+      await _processData(result.files.single.name, result.files.single.bytes!);
     }
   }
 
@@ -285,7 +339,7 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           onDragDone: (details) async {
             if (details.files.isNotEmpty) {
               final file = details.files.first;
-              await _processFile(file.name, await file.readAsBytes());
+              await _processData(file.name, await file.readAsBytes());
             }
           },
           child: Container(
@@ -335,9 +389,9 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           ],
         ),
         const SizedBox(height: 16),
-        SelectableText('File: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
+        SelectableText('Source: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-        const Text("Your file's unique digest:"),
+        const Text("Your data's unique digest:"),
         const SizedBox(height: 5),
         SelectableText(
           _digest!,
