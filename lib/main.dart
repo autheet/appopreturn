@@ -178,36 +178,24 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   }
 
   Future<void> _initSharing() async {
-    // Listen for shared media (files, text, etc.) when the app is running
-    // Use the .instance singleton to access the stream
+    // Listen for shared media when the app is running
     ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
       if (value.isNotEmpty) {
-        _handleSharedData(value.first);
+        _handleSharedFile(value.first);
       }
     });
 
     // Handle shared media when the app was closed and is now starting up
-    // Use the .instance singleton to get the initial media
-    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
-      if (value.isNotEmpty) {
-        _handleSharedData(value.first);
-      }
-    });
+    final initialMedia = await ReceiveSharingIntent.instance.getInitialMedia();
+    if (initialMedia.isNotEmpty) {
+      _handleSharedFile(initialMedia.first);
+    }
   }
   
-  Future<void> _handleSharedData(SharedMediaFile data) async {
-    // The package now correctly differentiates text from files.
-    // For text, the content is in the 'path' property.
-    if (data.type == SharedMediaType.text) {
-      final bytes = utf8.encode(data.path);
-      await _processData("Shared Text", bytes);
-    } 
-    // For files, we need to read the bytes from the path.
-    else {
-      final fileName = data.path.split('/').last;
-      final bytes = await File(data.path).readAsBytes();
-      await _processData(fileName, bytes);
-    }
+  Future<void> _handleSharedFile(SharedMediaFile file) async {
+    final fileName = file.path.split('/').last;
+    final bytes = await File(file.path).readAsBytes();
+    await _processData(fileName, bytes);
   }
 
   Future<void> _processData(String name, Uint8List bytes) async {
