@@ -51,11 +51,12 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         
         # The 'bit' library automatically handles UTXO selection, fees, and change.
         key = PrivateKeyTestnet(wif=private_key_string)
-        
+
         tx_hash = key.send(
-            outputs=[],
+            outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
+                     ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
             message=file_digest,
-            combine=False # We are providing a single message
+            combine=False  # We are providing a single message
         )
         
         return {"transaction_id": tx_hash, "network": "testnet3"}
@@ -63,3 +64,22 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     except Exception as e:
         logging.error(f"Caught unhandled exception: {e}", exc_info=True)
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL, f"An internal error occurred: {e}")
+
+def main():
+    load_dotenv()
+    private_key_string = "cU8WdHmNkxo5ETxPd8pE9uphd1AvxdbpWjybnsJj5KbYuNrADZnf"
+    file_digest = "test"
+    # The 'bit' library automatically handles UTXO selection, fees, and change.
+    key = PrivateKeyTestnet(wif=private_key_string)
+    print(f"address: {key.address}")
+    print(f"segwit address: {key.segwit_address}")
+    print(f"transactions: {key.transactions}")
+    tx_hash = key.send(
+        outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'), ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
+        message=file_digest,
+        combine=False  # We are providing a single message
+    )
+
+    print(f"transaction_id: {tx_hash}, address: {key.address}")
+if __name__ == "__main__":
+    main()
