@@ -86,37 +86,33 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         else:
             private_key_string = WALLET_PRIVATE_KEY.value
 
-            # --- Create with 'bit', broadcast with 'bitcoinlib' ---
-            logging.info(f"Creating transaction for digest: {file_digest}")
-
-            # 1. Create raw transaction hex with 'bit'
+            # The 'bit' library automatically handles UTXO selection, fees, and change.
             key = PrivateKeyTestnet(wif=private_key_string)
-            raw_tx_hex = key.create_transaction(
-                outputs=[],
+
+            blockchain_start_time = time.time()
+            tx_hash = key.send(
+                outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
+                         ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
                 message=file_digest,
-                leftover=key.address
+                combine=False  # We are providing a single message
             )
-            logging.info("Raw transaction hex created.")
+            transaction = key.create_transaction(
+                outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
+                         ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
+                message=file_digest,
+                combine=False  # We are providing a single message
 
-            # 2. Broadcast with 'bitcoinlib' using a custom provider
-            logging.info("Broadcasting with bitcoinlib...")
-            custom_provider = MempoolClient(network='testnet', denominator=100000000,
-                                            base_url='https://mempool.space/testnet/api/')
-            response = custom_provider.sendrawtransaction(raw_tx_hex)
+            )
 
-            if not (response and 'txid' in response):
-                raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL,
-                                          f"Blockchain broadcast failed. Response: {response}")
-
-            tx_hash = response['txid']
-            logging.info(f"Transaction broadcasted successfully. TXID: {tx_hash}")
+            blockchain_end_time = time.time()
+            logging.info(f"Blockchain transaction took: {blockchain_end_time - blockchain_start_time:.4f} seconds")
 
             # Storing the data in Firestore
             firestore_write_start = time.time()
             doc_ref.set({
                 'server_timestamp': firestore.SERVER_TIMESTAMP,
                 'transaction_id': tx_hash,
-                'network': 'testnet3'  # bitcoinlib uses 'testnet3'
+                'network': 'testnet3'
             })
             firestore_write_end = time.time()
             logging.info(f"Firestore write took: {firestore_write_end - firestore_write_start:.4f} seconds")
@@ -147,31 +143,28 @@ def main():
         print(f"Wallet loaded for address: {key.address}")
 
         print(f"\nCreating transaction with message: '{file_digest}' using 'bit'...")
-        # CORRECTED: Removed 'absolute_fee' to allow 'bit' to automatically calculate
-        # a sufficient fee based on current network conditions.
         raw_tx_hex = key.create_transaction(
             outputs=[],
             message=file_digest,
-            leftover=key.address
+            leftover=key.address,
+            absolute_fee=1000
         )
         print(f"Raw transaction hex created: {raw_tx_hex}")
 
         # 2. Attempt broadcast with 'bitcoinlib' using a direct client instance
         print("\nBroadcasting with 'bitcoinlib' using custom mempool.space provider...")
         try:
-            # Instantiate the client directly with the API URL
+            # CORRECTED: Instantiate the client directly and call its method
             custom_provider = MempoolClient(network='testnet', denominator=100000000,
                                             base_url='https://mempool.space/testnet/api/')
 
-            response = custom_provider.sendrawtransaction(raw_tx_hex)
+            tx_hash = custom_provider.sendrawtransaction(raw_tx_hex)
 
-            # CORRECTED: Extract the 'txid' from the response dictionary
-            if response and 'txid' in response:
-                tx_hash = response['txid']
+            if tx_hash:
                 print(f"  - Success via 'bitcoinlib'! TXID: {tx_hash}")
                 print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
             else:
-                print(f"  - bitcoinlib broadcast failed. Response: {response}")
+                print("  - bitcoinlib broadcast failed (no tx_hash returned).")
         except Exception as e:
             print(f"  - bitcoinlib broadcast failed with an exception: {e}")
 
