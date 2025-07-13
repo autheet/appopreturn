@@ -3,6 +3,7 @@ from firebase_admin import firestore
 import logging
 import traceback
 import os
+import time
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
@@ -46,6 +47,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
     """
+    total_start_time = time.time()
     try:
         file_digest = req.data.get("digest")
         if not file_digest:
@@ -53,13 +55,19 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         
         db = firestore.client()
         doc_ref = db.collection('digestdata_public').document(file_digest)
+
+        firestore_read_start = time.time()
         doc = doc_ref.get()
+        firestore_read_end = time.time()
+        logging.info(f"Firestore read took: {firestore_read_end - firestore_read_start:.4f} seconds")
 
         if doc.exists:
             doc_dict = doc.to_dict()
             transaction_id = doc_dict.get('transaction_id')
             network = doc_dict.get('network')
             server_timestamp = doc_dict.get('server_timestamp')
+            total_end_time = time.time()
+            logging.info(f"Total execution time for existing digest: {total_end_time - total_start_time:.4f} seconds")
             return {"transaction_id": transaction_id, "network": network, "new_digest": False, 'server_timestamp': server_timestamp}
         else:
             private_key_string = WALLET_PRIVATE_KEY.value
@@ -67,24 +75,35 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
             # The 'bit' library automatically handles UTXO selection, fees, and change.
             key = PrivateKeyTestnet(wif=private_key_string)
 
+            blockchain_start_time = time.time()
             tx_hash = key.send(
                 outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
                          ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
                 message=file_digest,
                 combine=False  # We are providing a single message
             )
+            blockchain_end_time = time.time()
+            logging.info(f"Blockchain transaction took: {blockchain_end_time - blockchain_start_time:.4f} seconds")
+
 
             # Storing the data in Firestore
+            firestore_write_start = time.time()
             doc_ref.set({
                 'server_timestamp': firestore.SERVER_TIMESTAMP,
                 'transaction_id': tx_hash,
                 'network': 'testnet3'
             })
+            firestore_write_end = time.time()
+            logging.info(f"Firestore write took: {firestore_write_end - firestore_write_start:.4f} seconds")
             
+            total_end_time = time.time()
+            logging.info(f"Total execution time for new digest: {total_end_time - total_start_time:.4f} seconds")
             return {"transaction_id": tx_hash, "network": "testnet3", "new_digest": True}
 
     except Exception as e:
         logging.error(f"Caught unhandled exception: {e}", exc_info=True)
+        total_end_time = time.time()
+        logging.info(f"Total execution time with error: {total_end_time - total_start_time:.4f} seconds")
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL, f"An internal error occurred: {e}")
 
 def main():
