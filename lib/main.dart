@@ -284,7 +284,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
         ],
       ),
       const SizedBox(height: 16),
-      Text('File: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
+      SelectableText('File: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
       const SizedBox(height: 10),
       const Text("Your file's unique digest:"),
       const SizedBox(height: 5),
@@ -324,7 +324,7 @@ class _CreateProofPageState extends State<CreateProofPage> {
           style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
         ),
         const SizedBox(height: 8),
-        Text('Network: $_network'),
+        SelectableText('Network: $_network'),
       ]
     ];
   }
