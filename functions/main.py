@@ -67,7 +67,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
 
 def main():
     load_dotenv()
-    private_key_string = "cU8WdHmNkxo5ETxPd8pE9uphd1AvxdbpWjybnsJj5KbYuNrADZnf"
+
     file_digest = "test"
     # The 'bit' library automatically handles UTXO selection, fees, and change.
     key = PrivateKeyTestnet(wif=private_key_string)
