@@ -82,7 +82,7 @@ class _AppShellState extends State<AppShell> {
               });
             },
             labelType: NavigationRailLabelType.all,
-            leading: const FlutterLogo(size: 40),
+            leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
             destinations: const <NavigationRailDestination>[
               NavigationRailDestination(
                 icon: Icon(Icons.add_box_outlined),
