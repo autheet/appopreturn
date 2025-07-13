@@ -8,3 +8,4 @@ pycryptodome
 # Keep dotenv for local testing with .env files
 python-dotenv
 setuptools
+bitcoinlib
