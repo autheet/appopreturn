@@ -18,7 +18,7 @@ from Crypto.Hash import RIPEMD160
 # Import the bitcoinlib library
 from bitcoinlib.wallets import Wallet, WalletError
 from bitcoinlib.services.services import Service
-from bitcoinlib.services.services import Service, set_provider_config
+from bitcoinlib.services.mempool import MempoolClient
 from bitcoinlib.transactions import Transaction
 # CORRECTED: Import Script class only
 from bitcoinlib.scripts import Script
@@ -133,18 +133,9 @@ def main():
     load_dotenv(dotenv_path)
     private_key_string = os.environ.get("LOCAL_WALLET_PRIVATE_KEY")
     file_digest = "test"
-    custom_provider_config = {
-        'mempool_custom': {
-            'network': 'testnet',
-            'provider': 'mempool',
-            # This is the direct API URL
-            'url': 'https://mempool.space/testnet/api'
-        }
-    }
-    # 2. Load the custom configuration into bitcoinlib
 
-    # --- Dual Broadcast Strategy: Create with 'bit', broadcast with both ---
-    print("--- Strategy: Create (bit) -> Broadcast (bitcoinlib) AND Broadcast (bit) ---")
+    # --- Strategy: Create with 'bit', broadcast with a custom bitcoinlib provider ---
+    print("--- Strategy: Create (bit) -> Broadcast (bitcoinlib with custom provider) ---")
 
     try:
         # 1. Load key and create raw tx hex with 'bit' library
@@ -160,42 +151,22 @@ def main():
         )
         print(f"Raw transaction hex created: {raw_tx_hex}")
 
-        # 2. Attempt broadcast with 'bitcoinlib' for robust error reporting
-        print("\nBroadcasting with 'bitcoinlib'...")
+        # 2. Attempt broadcast with 'bitcoinlib' using a direct client instance
+        print("\nBroadcasting with 'bitcoinlib' using custom mempool.space provider...")
         try:
-            custom_provider_config = {
-                'mempool_custom_testnet': {
-                    'network': 'testnet',
-                    'provider': 'mempool',
-                    'url': 'https://mempool.space/testnet/api'
-                }
-            }
-            set_provider_config(custom_provider_config)
-            service = Service(network='testnet', providers=['blockchair', 'mempool', 'blockcypher', custom_provider_config])
-            tx_hash = service.sendrawtransaction(raw_tx_hex)
+            # CORRECTED: Instantiate the client directly and call its method
+            custom_provider = MempoolClient(network='testnet', denominator=100000000,
+                                            base_url='https://mempool.space/testnet/api/')
+
+            tx_hash = custom_provider.sendrawtransaction(raw_tx_hex)
+
             if tx_hash:
                 print(f"  - Success via 'bitcoinlib'! TXID: {tx_hash}")
+                print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
             else:
                 print("  - bitcoinlib broadcast failed (no tx_hash returned).")
         except Exception as e:
             print(f"  - bitcoinlib broadcast failed with an exception: {e}")
-
-        # 3. Also attempt broadcast with 'bit' library as a secondary measure
-        print("\nBroadcasting with 'bit' library...")
-        try:
-            # CORRECTED: Use the simple, high-level key.send() method for the 'bit' library broadcast.
-            # This is the most reliable way to send with 'bit'.
-            tx_hash = key.send(
-                outputs=[],
-                message=file_digest,
-                leftover=key.address,
-                absolute_fee=1000
-            )
-            print(f"  - 'bit' library broadcast sent successfully.")
-            print(f"  - TXID: {tx_hash}")
-            print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
-        except Exception as e:
-            print(f"  - bit broadcast failed with an exception: {e}")
 
     except Exception as e:
         print(f"\nAn unexpected error occurred during transaction creation: {e}")
