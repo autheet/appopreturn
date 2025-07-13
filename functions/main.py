@@ -1,10 +1,34 @@
+import firebase_admin
 import logging
 import traceback
 from dotenv import load_dotenv
 from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
 from bit import PrivateKeyTestnet
+from Crypto.Hash import RIPEMD160
+import hashlib
 
+# --- Initialize Firebase Admin SDK ---
+# This is required for the Firebase runtime to operate correctly,
+# including handling App Check tokens.
+firebase_admin.initialize_app()
+# -----------------------------------
+
+
+# --- Polyfill for ripemd160 ---
+# The standard Python hashlib does not include ripemd160. The 'bit' library
+# requires it. We must monkey-patch the hashlib library to add it.
+try:
+    hashlib.new('ripemd160', b'hello')
+except ValueError:
+    logging.info("Adding ripemd160 to hashlib")
+    _old_new = hashlib.new
+    def _new(name, data=b''):
+        if name == 'ripemd160':
+            return RIPEMD160.new(data)
+        return _old_new(name, data)
+    hashlib.new = _new
+# -----------------------------
 
 
 # Load environment variables from .env file FOR LOCAL TESTING ONLY
