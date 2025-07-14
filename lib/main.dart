@@ -14,30 +14,39 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+// Get the reCAPTCHA site key from the environment.
+// The key is passed in during the build process using the --dart-define flag.
+const reCaptchaEnterpriseSiteKey = String.fromEnvironment('RECAPTCHA_ENTERPRISE_SITE_KEY');
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // On release builds, check if the reCAPTCHA key is provided.
+  if (!kDebugMode && reCaptchaEnterpriseSiteKey.isEmpty) {
+    throw Exception('RECAPTCHA_ENTERPRISE_SITE_KEY is not set. Please provide it during the build process using --dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=YOUR_KEY');
+  }
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
   // Use the debug provider in debug mode, and the production providers in release mode.
   if (kDebugMode) {
-    // Activate the debug provider for web.
-    // You will need to copy the debug token printed to the console and add it to your app's App Check settings in the Firebase console.
+    // In debug mode, we can use a hardcoded reCAPTCHA v3 key for easier testing.
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.debug,
       appleProvider: AppleProvider.debug,
       webProvider: ReCaptchaV3Provider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
     );
-    // Get the debug token and print it to the console.
     FirebaseAppCheck.instance.onTokenChange.listen((token) {
       if (token != null) {
         print('App Check debug token: $token');
       }
     });
   } else {
+    // In release mode, use the reCAPTCHA Enterprise key provided at build time.
     await FirebaseAppCheck.instance.activate(
-      webProvider: ReCaptchaEnterpriseProvider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
+      webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
       androidProvider: AndroidProvider.playIntegrity,
       appleProvider: AppleProvider.appAttest,
     );
