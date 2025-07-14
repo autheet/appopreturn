@@ -44,7 +44,7 @@ echo "Running tests..."
 # echo "Tests passed. Proceeding with deployment..."
 
 
-# dart run rename_app:main all="appopreturn"
+dart run rename_app:main all="appopreturn"
 ./pre_deploy_web.sh
 ./pre_deploy_functions.sh
 ./pre_deploy_android.sh

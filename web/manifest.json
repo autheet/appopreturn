@@ -1,6 +1,6 @@
 {
-    "name": "myapp",
-    "short_name": "myapp",
+    "name": "appopreturn",
+    "short_name": "appopreturn",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#00000000",
