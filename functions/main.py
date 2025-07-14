@@ -360,7 +360,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
             raw_tx_hex = key.create_transaction(
                 outputs=[],
                 message=file_digest,
-                leftover=key.address,
+                leftover=key.segwit_address,
                 unspents=unspents,  # Provide the fetched UTXOs directly
                 fee=recommended_fee_sat_per_byte  # Set the fee rate
             )
@@ -409,7 +409,7 @@ def main():
         # 1. Load key and check balance before proceeding
         key = PrivateKeyTestnet(wif=private_key_string)
         print(f"Wallet loaded for address: {key.address}")
-
+        print(f"Wallet loaded for segwit address: {key.segwit_address}")
         print("Checking wallet balance using resilient custom functions...")
         # Manually fetch unspents and calculate balance.
         unspents = get_unspents_resiliently(key.address)
@@ -431,7 +431,7 @@ def main():
         raw_tx_hex = key.create_transaction(
             outputs=[],
             message=file_digest,
-            leftover=key.address,
+            leftover=key.segwit_address,
             unspents=unspents,  # Provide the fetched UTXOs directly
             fee=recommended_fee_sat_per_byte  # Set the fee rate
         )
