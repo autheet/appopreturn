@@ -409,7 +409,7 @@ def main():
         # 1. Load key and check balance before proceeding
         key = PrivateKeyTestnet(wif=private_key_string)
         print(f"Wallet loaded for address: {key.address}")
-        print(f"Wallet loaded for address: {key.segwit_address}")
+        print(f"Wallet loaded for segwit address: {key.segwit_address}")
         print("Checking wallet balance using resilient custom functions...")
         # Manually fetch unspents and calculate balance.
         unspents = get_unspents_resiliently(key.address)
