@@ -9,6 +9,8 @@ from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
 from os.path import join, dirname
 import requests
+import random
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Import the library and the specific module we need to patch
 from bit import PrivateKeyTestnet, crypto
@@ -18,35 +20,74 @@ from Crypto.Hash import RIPEMD160
 # Import the bitcoinlib library components needed for broadcasting
 from bitcoinlib.services.mempool import MempoolClient
 
+# Create a global requests session for connection pooling
+# This helps reduce overhead for multiple HTTP requests within a single function invocation
+session = requests.Session()
+
 
 # --- Resilient, Multi-API Data Fetchers with Consensus ---
 
+# Decorator for retrying API calls with exponential backoff
+@retry(
+    stop=stop_after_attempt(5),  # Max 5 attempts
+    wait=wait_exponential(multiplier=1, min=2, max=10),  # Wait 2, 4, 8, 10, 10 seconds
+    retry=retry_if_exception_type(requests.exceptions.RequestException)  # Retry only on request-related exceptions
+)
+def _fetch_url(url, timeout=15, method='GET', json_data=None, data=None):
+    """Helper to make robust HTTP requests with retries."""
+    logging.info(
+        f"Fetching URL: {url} (Attempt {retry.statistics['attempt_number'] if hasattr(retry, 'statistics') else 1})")
+    try:
+        if method == 'GET':
+            response = session.get(url, timeout=timeout)
+        elif method == 'POST':
+            if json_data:
+                response = session.post(url, json=json_data, timeout=timeout)
+            else:
+                response = session.post(url, data=data, timeout=timeout)
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        return response
+    except requests.exceptions.RequestException as e:
+        logging.warning(f"Request to {url} failed: {e}. Retrying...")
+        raise  # Re-raise to trigger tenacity retry
+
+
+# UTXO Providers
 def get_unspent_from_mempool(address):
     """Fetches UTXOs from mempool.space."""
     logging.info(f"Attempting to fetch UTXOs from mempool.space for {address}")
     tip_height_url = "https://mempool.space/testnet/api/blocks/tip/height"
-    tip_height_r = requests.get(tip_height_url, timeout=10)
-    tip_height_r.raise_for_status()
+    tip_height_r = _fetch_url(tip_height_url)
     current_height = int(tip_height_r.text)
 
     url = f"https://mempool.space/testnet/api/address/{address}/utxo"
-    r = requests.get(url, timeout=10)
-    if r.status_code == 404: return []
-    r.raise_for_status()
-    utxos = r.json()
+    r = _fetch_url(url)
+    if r.status_code == 404:
+        logging.info(f"Mempool.space returned 404 for {address}, assuming no UTXOs.")
+        return []  # Address with no UTXOs
 
+    utxos = r.json()
     unspents = []
     for utxo in utxos:
-        tx_url = f"https://mempool.space/testnet/api/tx/{utxo['txid']}"
-        tx_r = requests.get(tx_url, timeout=10)
-        tx_r.raise_for_status()
-        tx_data = tx_r.json()
-        scriptpubkey = tx_data['vout'][utxo['vout']]['scriptpubkey']
+        try:
+            # Ensure all required keys exist before accessing
+            value = utxo['value']
+            txid = utxo['txid']
+            vout = utxo['vout']
+            scriptpubkey = utxo.get('scriptpubkey')  # Use .get() for safety
 
-        confirmations = current_height - utxo['status']['block_height'] + 1 if utxo.get('status', {}).get(
-            'confirmed') else 0
+            if scriptpubkey is None:
+                logging.warning(f"Mempool.space UTXO missing 'scriptpubkey' for txid {txid}, vout {vout}. Skipping.")
+                continue
 
-        unspents.append(Unspent(utxo['value'], confirmations, scriptpubkey, utxo['txid'], utxo['vout']))
+            confirmations = 0
+            if utxo.get('status', {}).get('confirmed') and utxo['status'].get('block_height'):
+                confirmations = current_height - utxo['status']['block_height'] + 1
+
+            unspents.append(Unspent(value, confirmations, scriptpubkey, txid, vout))
+        except KeyError as e:
+            logging.error(f"Mempool.space UTXO parsing error: Missing key {e} in UTXO: {utxo}")
+            continue  # Skip malformed UTXO
     logging.info(f"Successfully fetched {len(unspents)} UTXOs from mempool.space")
     return unspents
 
@@ -55,40 +96,119 @@ def get_unspent_from_blockchair(address):
     """Fetches UTXOs from blockchair.com."""
     logging.info(f"Attempting to fetch UTXOs from blockchair.com for {address}")
     url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=1000"
-    r = requests.get(url, timeout=10)
-    r.raise_for_status()
+    r = _fetch_url(url)
     data = r.json().get('data', {})
     utxos = data.get(address, {}).get('utxo', [])
 
     unspents = []
     for utxo in utxos:
-        unspents.append(
-            Unspent(utxo['value'], utxo['confirmations'], utxo['script_hex'], utxo['transaction_hash'], utxo['index']))
+        try:
+            value = utxo['value']
+            confirmations = utxo['confirmations']
+            script_hex = utxo.get('script_hex')  # Use .get() for safety
+            transaction_hash = utxo['transaction_hash']
+            index = utxo['index']
+
+            if script_hex is None:
+                logging.warning(
+                    f"Blockchair UTXO missing 'script_hex' for txid {transaction_hash}, index {index}. Skipping.")
+                continue
+
+            unspents.append(
+                Unspent(value, confirmations, script_hex, transaction_hash, index))
+        except KeyError as e:
+            logging.error(f"Blockchair UTXO parsing error: Missing key {e} in UTXO: {utxo}")
+            continue
     logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockchair.com")
+    return unspents
+
+
+def get_unspent_from_bitaps(address):
+    """Fetches UTXOs from bitaps.com."""
+    logging.info(f"Attempting to fetch UTXOs from bitaps.com for {address}")
+    url = f"https://api.bitaps.com/btc/testnet/v1/address/unspents/{address}"
+    r = _fetch_url(url)
+    data = r.json().get('data', {})
+    utxos = data.get('list', [])
+
+    unspents = []
+    for utxo in utxos:
+        try:
+            value = utxo['value']
+            confirmations = utxo['confirmations']
+            scriptPubKey = utxo.get('scriptPubKey')  # Use .get() for safety
+            txId = utxo['txId']
+            vOut = utxo['vOut']
+
+            if scriptPubKey is None:
+                logging.warning(f"Bitaps UTXO missing 'scriptPubKey' for txId {txId}, vOut {vOut}. Skipping.")
+                continue
+
+            unspents.append(Unspent(value, confirmations, scriptPubKey, txId, vOut))
+        except KeyError as e:
+            logging.error(f"Bitaps UTXO parsing error: Missing key {e} in UTXO: {utxo}")
+            continue
+    logging.info(f"Successfully fetched {len(unspents)} UTXOs from bitaps.com")
+    return unspents
+
+
+def get_unspent_from_blockcypher(address):
+    """Fetches UTXOs from blockcypher.com."""
+    logging.info(f"Attempting to fetch UTXOs from blockcypher.com for {address}")
+    url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}?unspentOnly=true"
+    r = _fetch_url(url)
+    data = r.json()
+    utxos = data.get('txrefs', [])
+
+    unspents = []
+    for utxo in utxos:
+        try:
+            value = utxo['value']
+            confirmations = utxo['confirmations']
+            script = utxo.get('script')  # Use .get() for safety
+            tx_hash = utxo['tx_hash']
+            tx_output_n = utxo['tx_output_n']
+
+            if script is None:
+                logging.warning(
+                    f"Blockcypher UTXO missing 'script' for tx_hash {tx_hash}, tx_output_n {tx_output_n}. Skipping.")
+                continue
+
+            unspents.append(
+                Unspent(value, confirmations, script, tx_hash, tx_output_n))
+        except KeyError as e:
+            logging.error(f"Blockcypher UTXO parsing error: Missing key {e} in UTXO: {utxo}")
+            continue
+    logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockcypher.com")
     return unspents
 
 
 def get_unspents_resiliently(address):
     """Tries a list of API providers to fetch UTXOs until one succeeds."""
-    providers = [get_unspent_from_mempool, get_unspent_from_blockchair]
+    providers = [
+        get_unspent_from_mempool,
+        get_unspent_from_blockchair,
+        get_unspent_from_bitaps,
+        get_unspent_from_blockcypher
+    ]
+    random.shuffle(providers)  # Shuffle providers for more distributed load/failover
     for provider_func in providers:
         try:
             return provider_func(address)
         except Exception as e:
-            logging.warning(f"Provider {provider_func.__name__} failed: {e}")
+            logging.warning(f"UTXO Provider {provider_func.__name__} failed: {e}")
     raise Exception("All UTXO API providers failed.")
 
 
+# Fee Providers
 def get_fee_from_mempool():
     """Fetches recommended fee from mempool.space."""
     logging.info("Attempting to fetch fee from mempool.space")
     url = "https://mempool.space/testnet/api/v1/fees/recommended"
-    r = requests.get(url, timeout=10)
-    r.raise_for_status()
+    r = _fetch_url(url)
     fees = r.json()
     fee = fees.get('hourFee')
     if fee:
-        logging.info(f"Got fee from mempool.space: {fee} sat/vB")
         return fee
     raise ValueError("Mempool.space fee API did not return 'hourFee'.")
 
@@ -97,13 +217,10 @@ def get_fee_from_blockchair():
     """Fetches recommended fee from blockchair.com."""
     logging.info("Attempting to fetch fee from blockchair.com")
     url = "https://api.blockchair.com/bitcoin/testnet/stats"
-    r = requests.get(url, timeout=10)
-    r.raise_for_status()
+    r = _fetch_url(url)
     data = r.json().get('data', {})
-    # Blockchair provides fee in sat/byte, for a 30-60 minute confirmation.
     fee_per_byte = data.get('suggested_transaction_fee_per_byte_sat')
     if fee_per_byte:
-        logging.info(f"Got fee from blockchair.com: {fee_per_byte} sat/vB")
         return fee_per_byte
     raise ValueError("Blockchair stats API did not return 'suggested_transaction_fee_per_byte_sat'.")
 
@@ -112,37 +229,159 @@ def get_fee_from_bitaps():
     """Fetches recommended fee from bitaps.com."""
     logging.info("Attempting to fetch fee from bitaps.com")
     url = "https://api.bitaps.com/btc/testnet/v1/blockchain/fee/estimation"
-    r = requests.get(url, timeout=10)
-    r.raise_for_status()
+    r = _fetch_url(url)
     data = r.json()
-    # Bitaps provides a 'medium' fee rate.
     fee_per_byte = data.get('medium', {}).get('feeRate')
     if fee_per_byte:
-        logging.info(f"Got fee from bitaps.com: {fee_per_byte} sat/vB")
         return fee_per_byte
     raise ValueError("Bitaps fee API did not return 'medium' fee rate.")
 
 
-def get_fee_with_consensus():
+def get_fee_from_blockcypher():
+    """Fetches recommended fee from blockcypher.com."""
+    logging.info("Attempting to fetch fee from blockcypher.com")
+    url = "https://api.blockcypher.com/v1/btc/test3"
+    r = _fetch_url(url)
+    data = r.json()
+    # Fee is in satoshis per kilobyte, convert to sat/vB
+    fee_per_kb = data.get('medium_fee_per_kb')
+    if fee_per_kb:
+        fee_per_byte = fee_per_kb / 1000
+        return fee_per_byte
+    raise ValueError("Blockcypher API did not return 'medium_fee_per_kb'.")
+
+
+def get_fee_with_random_retry_and_average():
     """
-    Tries multiple API providers to fetch recommended fees and uses the
-    lowest fee from the successful providers.
+    Chooses a random API for fee, retries with another random API if the first fails.
+    If two successful results are obtained, it averages them and divides by 5.
+    If only one is successful, it uses that one.
     """
-    providers = [get_fee_from_mempool, get_fee_from_blockchair, get_fee_from_bitaps]
-    fees = []
+    fee_providers = [
+        get_fee_from_mempool,
+        get_fee_from_blockchair,
+        get_fee_from_bitaps,
+        get_fee_from_blockcypher
+    ]
+
+    # Create a shuffled copy to pick from without modifying the original list
+    available_providers = list(fee_providers)
+    random.shuffle(available_providers)
+
+    successful_fees = []
+
+    # Try to get up to two successful results from distinct providers
+    for _ in range(min(2, len(available_providers))):
+        if not available_providers:  # No more providers to try
+            break
+
+        # Pick a random provider from the remaining available ones
+        provider_func = available_providers.pop(random.randrange(len(available_providers)))
+
+        try:
+            fee = provider_func()
+            successful_fees.append(fee)
+            logging.info(f"Got fee from {provider_func.__name__}: {fee} sat/vB")
+            if len(successful_fees) == 2:  # Stop if we have two successful fees for averaging
+                break
+        except Exception as e:
+            logging.warning(f"Fee provider {provider_func.__name__} failed: {e}. Trying another random provider...")
+            continue  # Continue to the next iteration to try another provider
+
+    if len(successful_fees) >= 2:
+        # Take the average of the two delivered results and divide by 5
+        avg_fee = sum(successful_fees[:2]) / 2
+        final_fee = int(avg_fee / 5)
+        logging.info(
+            f"Two fees obtained ({successful_fees[0]}, {successful_fees[1]}). Averaging and dividing by 5: {final_fee} sat/vB")
+        return max(1, final_fee)  # Ensure fee is at least 1 sat/vB
+    elif len(successful_fees) == 1:
+        # If only one API succeeded, use its result and divide by 5
+        final_fee = int(successful_fees[0] / 5)
+        logging.info(f"Only one fee obtained ({successful_fees[0]}). Dividing by 5: {final_fee} sat/vB")
+        return max(1, final_fee)  # Ensure fee is at least 1 sat/vB
+    else:
+        logging.warning("No fee providers succeeded after multiple attempts. Falling back to default fee.")
+        return 25  # Fallback fee
+
+
+# Broadcast Providers
+def broadcast_with_mempool(tx_hex):
+    """Broadcasts transaction using mempool.space."""
+    logging.info("Broadcasting with mempool.space...")
+    # MempoolClient handles its own sessions/requests, so we don't use our global session here.
+    # It also has its own retry logic, so we don't apply the _fetch_url decorator directly here.
+    provider = MempoolClient(network='testnet', denominator=100000000, base_url='https://mempool.space/testnet/api/')
+    response = provider.sendrawtransaction(tx_hex)
+    if response and 'txid' in response:
+        return response['txid']
+    raise Exception(f"Mempool broadcast failed. Response: {response}")
+
+
+def broadcast_with_blockchair(tx_hex):
+    """Broadcasts transaction using blockchair.com."""
+    logging.info("Broadcasting with blockchair.com...")
+    url = "https://api.blockchair.com/bitcoin/testnet/push/transaction"
+    response = _fetch_url(url, method='POST', data={'data': tx_hex})
+    data = response.json().get('data', {})
+    txid = data.get('transaction_hash')
+    if txid:
+        return txid
+    raise Exception(f"Blockchair broadcast failed. Response: {data}")
+
+
+def broadcast_with_blockcypher(tx_hex):
+    """Broadcasts transaction using blockcypher.com."""
+    logging.info("Broadcasting with blockcypher.com...")
+    url = "https://api.blockcypher.com/v1/btc/test3/txs/push"
+    response = _fetch_url(url, method='POST', json_data={'tx': tx_hex})
+    data = response.json().get('tx', {})
+    txid = data.get('hash')
+    if txid:
+        return txid
+    raise Exception(f"Blockcypher broadcast failed. Response: {data}")
+
+
+def broadcast_with_bitaps(tx_hex):
+    """Broadcasts transaction using bitaps.com."""
+    logging.info("Broadcasting with bitaps.com...")
+    url = "https://api.bitaps.com/btc/testnet/v1/blockchain/transaction/broadcast"
+    response = _fetch_url(url, method='POST', json_data={'rawTransaction': tx_hex})
+    txid = response.json().get('txId')
+    if txid:
+        return txid
+    raise Exception(f"Bitaps broadcast failed. Response: {response.text}")
+
+
+def broadcast_with_blockstream(tx_hex):
+    """Broadcasts transaction using blockstream.info."""
+    logging.info("Broadcasting with blockstream.info...")
+    url = "https://blockstream.info/testnet/api/tx"
+    response = _fetch_url(url, method='POST', data=tx_hex)
+    txid = response.text
+    if len(txid) == 64:  # A valid TXID is 64 hex characters
+        return txid
+    raise Exception(f"Blockstream broadcast failed. Response: {txid}")
+
+
+def broadcast_resiliently(tx_hex):
+    """Tries a list of API providers to broadcast a transaction until one succeeds."""
+    providers = [
+        broadcast_with_mempool,
+        broadcast_with_blockchair,
+        broadcast_with_blockcypher,
+        broadcast_with_bitaps,
+        broadcast_with_blockstream
+    ]
+    random.shuffle(providers)
     for provider_func in providers:
         try:
-            fees.append(provider_func())
+            txid = provider_func(tx_hex)
+            logging.info(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
+            return txid
         except Exception as e:
-            logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
-
-    if fees:
-        lowest_fee = min(fees)
-        logging.info(f"Successfully fetched fees: {fees}. Using lowest value: {lowest_fee} sat/vB")
-        return lowest_fee
-    else:
-        logging.warning("All fee providers failed. Falling back to default fee.")
-        return 20  # Fallback fee
+            logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
+    raise Exception("All broadcast API providers failed.")
 
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
@@ -159,12 +398,8 @@ def _patched_bit_crypto_new(name, data=b''):
 crypto.new = _patched_bit_crypto_new
 # ----------------------------------------------------------
 
-# Load environment variables from .env file for local testing
+# Load environment variables for local testing (only applies when running main() locally)
 load_dotenv()
-
-# Initialize Firebase Admin SDK
-if not firebase_admin._apps:
-    firebase_admin.initialize_app()
 
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 
@@ -175,13 +410,24 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     Handles requests from free users for the testnet blockchain.
     Creates transactions with 'bit' (patched) and broadcasts with 'bitcoinlib'.
     """
+    # Initialize Firebase Admin SDK if not already initialized.
+    # NOTE: While this fulfills the request to move initialization inside the function,
+    # it's generally more performant to initialize Firebase Admin SDK and Firestore client
+    # globally in Cloud Functions. This allows the initialized instances to be reused
+    # across multiple invocations of the same function instance, reducing cold start
+    # times and overall execution latency.
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app()
+
+    # Initialize Firestore client.
+    db = firestore.client()
+
     total_start_time = time.time()
     try:
         file_digest = req.data.get("digest")
         if not file_digest:
             raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INVALID_ARGUMENT, "Missing file digest.")
 
-        db = firestore.client()
         doc_ref = db.collection('digestdata_public').document(file_digest)
 
         firestore_read_start = time.time()
@@ -202,14 +448,11 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         else:
             private_key_string = WALLET_PRIVATE_KEY.value
 
-            # --- Strategy: Create with 'bit', broadcast with 'bitcoinlib' ---
             logging.info(f"Creating transaction for digest: {file_digest}")
 
-            # 1. Load wallet and explicitly check balance before creating transaction
             key = PrivateKeyTestnet(wif=private_key_string)
             logging.info(f"Wallet loaded for address: {key.address}")
 
-            # Manually fetch unspents using our reliable function to bypass 'bit's networking.
             unspents = get_unspents_resiliently(key.address)
             balance = sum(utxo.amount for utxo in unspents)
 
@@ -218,34 +461,20 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
                 raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
                                           "The wallet has no funds. Please use a testnet faucet.")
 
-            # 2. Get recommended fee and create raw transaction hex.
-            recommended_fee_sat_per_byte = get_fee_with_consensus()
-            logging.info(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
+            # Get recommended fee using the new random-retry-average logic
+            recommended_fee_sat_per_byte = get_fee_with_random_retry_and_average()
+            logging.info(f"Using calculated fee rate: {recommended_fee_sat_per_byte} sat/vB")
 
             raw_tx_hex = key.create_transaction(
                 outputs=[],
                 message=file_digest,
-                leftover=key.address,
-                unspents=unspents,  # Provide the fetched UTXOs directly
-                fee=recommended_fee_sat_per_byte  # Set the fee rate
+                unspents=unspents,
+                fee=recommended_fee_sat_per_byte
             )
             logging.info("Raw transaction hex created.")
 
-            # 3. Broadcast with 'bitcoinlib' using the Mempool.space provider
-            logging.info("Broadcasting with bitcoinlib's MempoolClient...")
-            custom_provider = MempoolClient(network='testnet', denominator=100000000,
-                                            base_url='https://mempool.space/testnet/api/')
-            response = custom_provider.sendrawtransaction(raw_tx_hex)
+            tx_hash = broadcast_resiliently(raw_tx_hex)
 
-            if not (response and 'txid' in response):
-                logging.error(f"Blockchain broadcast failed. Response: {response}")
-                raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL,
-                                          f"Blockchain broadcast failed. Response: {response}")
-
-            tx_hash = response['txid']
-            logging.info(f"Transaction broadcasted successfully. TXID: {tx_hash}")
-
-            # 4. Store the new transaction data in Firestore
             firestore_write_start = time.time()
             doc_ref.set({
                 'server_timestamp': firestore.SERVER_TIMESTAMP,
@@ -282,12 +511,10 @@ def main():
     print("--- Strategy: Create (bit) -> Broadcast (bitcoinlib with MempoolClient) ---")
 
     try:
-        # 1. Load key and check balance before proceeding
         key = PrivateKeyTestnet(wif=private_key_string)
         print(f"Wallet loaded for address: {key.address}")
-
+        print(f"Wallet loaded for segwit address: {key.segwit_address}")
         print("Checking wallet balance using resilient custom functions...")
-        # Manually fetch unspents and calculate balance.
         unspents = get_unspents_resiliently(key.address)
         balance = sum(utxo.amount for utxo in unspents)
         print(f"Wallet balance: {balance} satoshis")
@@ -298,36 +525,24 @@ def main():
             print("You can use a faucet like https://coinfaucet.eu/en/btc-testnet/")
             return
 
-        # 2. Get recommended fee and create raw tx hex.
-        print("\nFetching recommended fee rate...")
-        recommended_fee_sat_per_byte = get_fee_with_consensus()
+        print("\nFetching recommended fee rate with random retry and averaging...")
+        recommended_fee_sat_per_byte = get_fee_with_random_retry_and_average()
         print(f"Using fee rate: {recommended_fee_sat_per_byte} sat/vB")
 
         print(f"\nCreating transaction with message: '{file_digest}' using 'bit'...")
         raw_tx_hex = key.create_transaction(
             outputs=[],
             message=file_digest,
-            leftover=key.address,
-            unspents=unspents,  # Provide the fetched UTXOs directly
-            fee=recommended_fee_sat_per_byte  # Set the fee rate
+            unspents=unspents,
+            fee=recommended_fee_sat_per_byte
         )
         print(f"Raw transaction hex created: {raw_tx_hex[:64]}...")
 
-        # 3. Attempt broadcast with 'bitcoinlib' using a direct client instance
-        print("\nBroadcasting with 'bitcoinlib' using custom mempool.space provider...")
-        try:
-            custom_provider = MempoolClient(network='testnet', denominator=100000000,
-                                            base_url='https://mempool.space/testnet/api/')
-            response = custom_provider.sendrawtransaction(raw_tx_hex)
+        print("\nBroadcasting transaction resiliently...")
+        tx_hash = broadcast_resiliently(raw_tx_hex)
+        print(f"  - Success! TXID: {tx_hash}")
+        print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
 
-            if response and 'txid' in response:
-                tx_hash = response['txid']
-                print(f"  - Success via 'bitcoinlib'! TXID: {tx_hash}")
-                print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
-            else:
-                print(f"  - bitcoinlib broadcast failed. Response: {response}")
-        except Exception as e:
-            print(f"  - bitcoinlib broadcast failed with an exception: {e}")
 
     except Exception as e:
         print(f"\nAn unexpected error occurred during transaction creation: {e}")
