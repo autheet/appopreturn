@@ -54,14 +54,14 @@ echo "Debug symbols for Android are in $DEBUG_SYMBOL_PATH_ANDROID"
 # --- End of Flutter Android App Build ---
 
 # --- Upload Android Debug Symbols to Firebase Crashlytics ---
-echo "Uploading Android debug symbols to Firebase Crashlytics..."
-if [ -d "$DEBUG_SYMBOL_PATH_ANDROID" ] && [ "$(ls -A $DEBUG_SYMBOL_PATH_ANDROID)" ]; then
-  # The command expects the path to the directory containing the .symbols files
-  firebase crashlytics:symbols:upload --app="$FIREBASE_ANDROID_APP_ID" "$DEBUG_SYMBOL_PATH_ANDROID"
-  echo "Android debug symbols upload attempt finished."
-else
-  echo "Warning: Debug symbols directory '$DEBUG_SYMBOL_PATH_ANDROID' is empty or does not exist. Skipping upload."
-fi
+#echo "Uploading Android debug symbols to Firebase Crashlytics..."
+#if [ -d "$DEBUG_SYMBOL_PATH_ANDROID" ] && [ "$(ls -A $DEBUG_SYMBOL_PATH_ANDROID)" ]; then
+#  # The command expects the path to the directory containing the .symbols files
+#  firebase crashlytics:symbols:upload --app="$FIREBASE_ANDROID_APP_ID" "$DEBUG_SYMBOL_PATH_ANDROID"
+#  echo "Android debug symbols upload attempt finished."
+#else
+#  echo "Warning: Debug symbols directory '$DEBUG_SYMBOL_PATH_ANDROID' is empty or does not exist. Skipping upload."
+#fi
 # --- End of Uploading Debug Symbols ---
 
 echo "Pre-deploy script for Android finished."
