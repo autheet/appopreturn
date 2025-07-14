@@ -1,10 +1,8 @@
 # Add the Firebase SDK for Python
 firebase-functions
 firebase-admin
-# Use the 'bit' library for a high-level interface to bitcoin transactions
-bit
-# Add pycryptodome to provide the ripemd160 hash algorithm
-pycryptodome
+# Use the 'bitcoinlib' library for a high-level interface to bitcoin transactions
+bitcoinlib
 # Keep dotenv for local testing with .env files
 python-dotenv
 setuptools
