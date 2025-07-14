@@ -22,11 +22,19 @@ void main() async {
 
   // Use the debug provider in debug mode, and the production providers in release mode.
   if (kDebugMode) {
+    // Activate the debug provider for web.
+    // You will need to copy the debug token printed to the console and add it to your app's App Check settings in the Firebase console.
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.debug,
       appleProvider: AppleProvider.debug,
       webProvider: ReCaptchaV3Provider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
     );
+    // Get the debug token and print it to the console.
+    FirebaseAppCheck.instance.onTokenChange.listen((token) {
+      if (token != null) {
+        print('App Check debug token: $token');
+      }
+    });
   } else {
     await FirebaseAppCheck.instance.activate(
       webProvider: ReCaptchaEnterpriseProvider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
