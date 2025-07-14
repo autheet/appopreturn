@@ -22,7 +22,7 @@ echo "Tests passed. Proceeding with deployment..."
 ./pre_deploy_functions.sh
 ./pre_deploy_android.sh
 
-firebase deploy
+firebase deploy --only hosting
 ./pre_deploy_ios.sh
 # pre deploy ios currently fails usually because of failing debug symbol upload, but it seems to work anyway.
 #!/bin/bash
