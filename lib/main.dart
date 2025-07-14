@@ -235,6 +235,33 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
     });
   }
 
+  Future<void> _launchBlockchainExplorer() async {
+    if (_transactionId == null || _network == null) return;
+
+    String url;
+    switch (_network) {
+      case 'testnet3':
+        url = 'https://mempool.space/testnet/tx/$_transactionId';
+        break;
+      case 'ethereum':
+        url = 'https://etherscan.io/tx/$_transactionId';
+        break;
+      case 'sepolia':
+        url = 'https://sepolia.etherscan.io/tx/$_transactionId';
+        break;
+      default:
+        print('Unknown network: $_network');
+        return;
+    }
+
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      print('Could not launch $url');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -407,6 +434,12 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           ),
           const SizedBox(height: 8),
           SelectableText('Network: $_network'),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: _launchBlockchainExplorer,
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('View Transaction on Blockchain Explorer'),
+          ),
         ]
       ],
     );
