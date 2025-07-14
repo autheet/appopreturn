@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main() async {
@@ -235,6 +236,31 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
     });
   }
 
+  Future<void> _launchBlockchainExplorer() async {
+    if (_transactionId == null || _network == null) return;
+
+    String url;
+    switch (_network) {
+      case 'testnet3':
+        url = 'https://mempool.space/testnet/tx/$_transactionId';
+        break;
+      case 'ethereum':
+        url = 'https://etherscan.io/tx/$_transactionId';
+        break;
+      case 'sepolia':
+        url = 'https://sepolia.etherscan.io/tx/$_transactionId';
+        break;
+      default:
+        print('Unknown network: $_network');
+        return;
+    }
+
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri)) {
+      print('Could not launch $url');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -284,19 +310,21 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
 
    Widget _buildInitialWidgets({required Key key}) {
     final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+    final showDropZone = kIsWeb || isDesktop;
+    final theme = Theme.of(context);
 
     Widget dropZoneContent = Container(
       height: 150,
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300, width: 2),
+        border: Border.all(color: theme.colorScheme.outline, width: 2),
         borderRadius: BorderRadius.circular(8),
-        color: Colors.grey.shade50,
+        color: theme.colorScheme.surfaceVariant,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (isDesktop) ...[
+          if (showDropZone) ...[
             const Text('Drop your file here'),
             const SizedBox(height: 10),
             const Text('or'),
@@ -324,13 +352,13 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Select a file to generate a unique, timestamped digest on the blockchain.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, color: Colors.black54),
+          style: theme.textTheme.bodyLarge,
         ),
         const SizedBox(height: 24),
-        if (isDesktop)
+        if (showDropZone)
           DropTarget(
             onDragDone: (details) async {
               if (details.files.isNotEmpty) {
@@ -347,6 +375,11 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   }
 
   Widget _buildResultWidgets({required Key key}) {
+    final theme = Theme.of(context);
+    final digestBackgroundColor = theme.brightness == Brightness.dark
+        ? theme.colorScheme.surfaceVariant
+        : const Color(0xFFECEFF1);
+
     return Column(
       key: key,
       mainAxisSize: MainAxisSize.min,
@@ -368,11 +401,14 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
         const SizedBox(height: 16),
         SelectableText('Source: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-        const Text("Your data's unique digest:"),
-        const SizedBox(height: 5),
-        SelectableText(
-          _digest!,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 13, backgroundColor: Color(0xFFECEFF1)),
+        CopyableText(
+          label: "Your data's unique digest:",
+          text: _digest!,
+          textStyle: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 13,
+            backgroundColor: digestBackgroundColor,
+          ),
         ),
         const SizedBox(height: 16),
         if (_transactionId == null) ...[
@@ -399,15 +435,73 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
           ),
           const SizedBox(height: 8),
-          const Text('Your proof is permanently recorded. Here is the Transaction ID:'),
-          const SizedBox(height: 5),
-          SelectableText(
-            _transactionId!,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          CopyableText(
+            label: 'Your proof is permanently recorded. Here is the Transaction ID:',
+            text: _transactionId!,
+            textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 13),
           ),
           const SizedBox(height: 8),
           SelectableText('Network: $_network'),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: _launchBlockchainExplorer,
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('View Transaction on Blockchain Explorer'),
+          ),
         ]
+      ],
+    );
+  }
+}
+
+class CopyableText extends StatelessWidget {
+  final String text;
+  final String? label;
+  final TextStyle? textStyle;
+
+  const CopyableText({
+    super.key,
+    required this.text,
+    this.label,
+    this.textStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final defaultStyle = const TextStyle(fontFamily: 'monospace', fontSize: 13);
+    final effectiveTextStyle = textStyle ?? defaultStyle;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null) ...[
+          Text(label!),
+          const SizedBox(height: 5),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: SelectableText(
+                text,
+                style: effectiveTextStyle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.copy, size: 18),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: text));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Copied to clipboard'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
+              tooltip: 'Copy',
+            ),
+          ],
+        ),
       ],
     );
   }
