@@ -9,6 +9,7 @@ from firebase_functions import https_fn
 from firebase_functions.params import SecretParam
 from os.path import join, dirname
 import requests
+import random
 
 # Import the library and the specific module we need to patch
 from bit import PrivateKeyTestnet, crypto
@@ -68,9 +69,49 @@ def get_unspent_from_blockchair(address):
     return unspents
 
 
+def get_unspent_from_bitaps(address):
+    """Fetches UTXOs from bitaps.com."""
+    logging.info(f"Attempting to fetch UTXOs from bitaps.com for {address}")
+    url = f"https://api.bitaps.com/btc/testnet/v1/address/unspents/{address}"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json().get('data', {})
+    utxos = data.get('list', [])
+
+    unspents = []
+    for utxo in utxos:
+        # Bitaps provides confirmations directly
+        unspents.append(Unspent(utxo['value'], utxo['confirmations'], utxo['scriptPubKey'], utxo['txId'], utxo['vOut']))
+    logging.info(f"Successfully fetched {len(unspents)} UTXOs from bitaps.com")
+    return unspents
+
+
+def get_unspent_from_blockcypher(address):
+    """Fetches UTXOs from blockcypher.com."""
+    logging.info(f"Attempting to fetch UTXOs from blockcypher.com for {address}")
+    url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}?unspentOnly=true"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    utxos = data.get('txrefs', [])
+
+    unspents = []
+    for utxo in utxos:
+        # Blockcypher provides confirmations directly
+        unspents.append(
+            Unspent(utxo['value'], utxo['confirmations'], utxo['script'], utxo['tx_hash'], utxo['tx_output_n']))
+    logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockcypher.com")
+    return unspents
+
+
 def get_unspents_resiliently(address):
     """Tries a list of API providers to fetch UTXOs until one succeeds."""
-    providers = [get_unspent_from_mempool, get_unspent_from_blockchair]
+    providers = [
+        get_unspent_from_mempool,
+        get_unspent_from_blockchair,
+        get_unspent_from_bitaps,
+        get_unspent_from_blockcypher
+    ]
     for provider_func in providers:
         try:
             return provider_func(address)
@@ -100,7 +141,6 @@ def get_fee_from_blockchair():
     r = requests.get(url, timeout=10)
     r.raise_for_status()
     data = r.json().get('data', {})
-    # Blockchair provides fee in sat/byte, for a 30-60 minute confirmation.
     fee_per_byte = data.get('suggested_transaction_fee_per_byte_sat')
     if fee_per_byte:
         logging.info(f"Got fee from blockchair.com: {fee_per_byte} sat/vB")
@@ -115,7 +155,6 @@ def get_fee_from_bitaps():
     r = requests.get(url, timeout=10)
     r.raise_for_status()
     data = r.json()
-    # Bitaps provides a 'medium' fee rate.
     fee_per_byte = data.get('medium', {}).get('feeRate')
     if fee_per_byte:
         logging.info(f"Got fee from bitaps.com: {fee_per_byte} sat/vB")
@@ -123,12 +162,28 @@ def get_fee_from_bitaps():
     raise ValueError("Bitaps fee API did not return 'medium' fee rate.")
 
 
+def get_fee_from_blockcypher():
+    """Fetches recommended fee from blockcypher.com."""
+    logging.info("Attempting to fetch fee from blockcypher.com")
+    url = "https://api.blockcypher.com/v1/btc/test3"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    # Fee is in satoshis per kilobyte, convert to sat/vB
+    fee_per_kb = data.get('medium_fee_per_kb')
+    if fee_per_kb:
+        fee_per_byte = fee_per_kb / 1000
+        logging.info(f"Got fee from blockcypher.com: {fee_per_byte} sat/vB")
+        return fee_per_byte
+    raise ValueError("Blockcypher API did not return 'medium_fee_per_kb'.")
+
+
 def get_fee_with_consensus():
     """
     Tries multiple API providers to fetch recommended fees and uses the
     lowest fee from the successful providers.
     """
-    providers = [get_fee_from_mempool, get_fee_from_blockchair, get_fee_from_bitaps]
+    providers = [get_fee_from_mempool, get_fee_from_blockchair, get_fee_from_bitaps, get_fee_from_blockcypher]
     fees = []
     for provider_func in providers:
         try:
@@ -137,12 +192,92 @@ def get_fee_with_consensus():
             logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
 
     if fees:
-        lowest_fee = min(fees)
+        lowest_fee = int(min(fees))
         logging.info(f"Successfully fetched fees: {fees}. Using lowest value: {lowest_fee} sat/vB")
         return lowest_fee
     else:
         logging.warning("All fee providers failed. Falling back to default fee.")
-        return 20  # Fallback fee
+        return 25  # Fallback fee, slightly increased for safety
+
+
+def broadcast_with_mempool(tx_hex):
+    """Broadcasts transaction using mempool.space."""
+    logging.info("Broadcasting with mempool.space...")
+    provider = MempoolClient(network='testnet', denominator=100000000, base_url='https://mempool.space/testnet/api/')
+    response = provider.sendrawtransaction(tx_hex)
+    if response and 'txid' in response:
+        return response['txid']
+    raise Exception(f"Mempool broadcast failed. Response: {response}")
+
+
+def broadcast_with_blockchair(tx_hex):
+    """Broadcasts transaction using blockchair.com."""
+    logging.info("Broadcasting with blockchair.com...")
+    url = "https://api.blockchair.com/bitcoin/testnet/push/transaction"
+    response = requests.post(url, data={'data': tx_hex}, timeout=10)
+    response.raise_for_status()
+    data = response.json().get('data', {})
+    txid = data.get('transaction_hash')
+    if txid:
+        return txid
+    raise Exception(f"Blockchair broadcast failed. Response: {data}")
+
+
+def broadcast_with_blockcypher(tx_hex):
+    """Broadcasts transaction using blockcypher.com."""
+    logging.info("Broadcasting with blockcypher.com...")
+    url = "https://api.blockcypher.com/v1/btc/test3/txs/push"
+    response = requests.post(url, json={'tx': tx_hex}, timeout=10)
+    response.raise_for_status()
+    data = response.json().get('tx', {})
+    txid = data.get('hash')
+    if txid:
+        return txid
+    raise Exception(f"Blockcypher broadcast failed. Response: {data}")
+
+
+def broadcast_with_bitaps(tx_hex):
+    """Broadcasts transaction using bitaps.com."""
+    logging.info("Broadcasting with bitaps.com...")
+    url = "https://api.bitaps.com/btc/testnet/v1/blockchain/transaction/broadcast"
+    response = requests.post(url, json={'rawTransaction': tx_hex}, timeout=10)
+    response.raise_for_status()
+    txid = response.json().get('txId')
+    if txid:
+        return txid
+    raise Exception(f"Bitaps broadcast failed. Response: {response.text}")
+
+
+def broadcast_with_blockstream(tx_hex):
+    """Broadcasts transaction using blockstream.info."""
+    logging.info("Broadcasting with blockstream.info...")
+    url = "https://blockstream.info/testnet/api/tx"
+    response = requests.post(url, data=tx_hex, timeout=10)
+    response.raise_for_status()
+    txid = response.text
+    if len(txid) == 64:  # A valid TXID is 64 hex characters
+        return txid
+    raise Exception(f"Blockstream broadcast failed. Response: {txid}")
+
+
+def broadcast_resiliently(tx_hex):
+    """Tries a list of API providers to broadcast a transaction until one succeeds."""
+    providers = [
+        broadcast_with_mempool,
+        broadcast_with_blockchair,
+        broadcast_with_blockcypher,
+        broadcast_with_bitaps,
+        broadcast_with_blockstream
+    ]
+    random.shuffle(providers)  # Randomize the order
+    for provider_func in providers:
+        try:
+            txid = provider_func(tx_hex)
+            logging.info(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
+            return txid
+        except Exception as e:
+            logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
+    raise Exception("All broadcast API providers failed.")
 
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
@@ -169,7 +304,7 @@ if not firebase_admin._apps:
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 
 
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
@@ -219,7 +354,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
                                           "The wallet has no funds. Please use a testnet faucet.")
 
             # 2. Get recommended fee and create raw transaction hex.
-            recommended_fee_sat_per_byte = get_fee_with_consensus()//4
+            recommended_fee_sat_per_byte = get_fee_with_consensus() // 5
             logging.info(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
 
             raw_tx_hex = key.create_transaction(
@@ -231,19 +366,8 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
             )
             logging.info("Raw transaction hex created.")
 
-            # 3. Broadcast with 'bitcoinlib' using the Mempool.space provider
-            logging.info("Broadcasting with bitcoinlib's MempoolClient...")
-            custom_provider = MempoolClient(network='testnet', denominator=100000000,
-                                            base_url='https://mempool.space/testnet/api/')
-            response = custom_provider.sendrawtransaction(raw_tx_hex)
-
-            if not (response and 'txid' in response):
-                logging.error(f"Blockchain broadcast failed. Response: {response}")
-                raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL,
-                                          f"Blockchain broadcast failed. Response: {response}")
-
-            tx_hash = response['txid']
-            logging.info(f"Transaction broadcasted successfully. TXID: {tx_hash}")
+            # 3. Broadcast transaction resiliently
+            tx_hash = broadcast_resiliently(raw_tx_hex)
 
             # 4. Store the new transaction data in Firestore
             firestore_write_start = time.time()
@@ -300,7 +424,7 @@ def main():
 
         # 2. Get recommended fee and create raw tx hex.
         print("\nFetching recommended fee rate...")
-        recommended_fee_sat_per_byte = get_fee_with_consensus()//4
+        recommended_fee_sat_per_byte = get_fee_with_consensus() // 5
         print(f"Using fee rate: {recommended_fee_sat_per_byte} sat/vB")
 
         print(f"\nCreating transaction with message: '{file_digest}' using 'bit'...")
@@ -313,21 +437,12 @@ def main():
         )
         print(f"Raw transaction hex created: {raw_tx_hex[:64]}...")
 
-        # 3. Attempt broadcast with 'bitcoinlib' using a direct client instance
-        print("\nBroadcasting with 'bitcoinlib' using custom mempool.space provider...")
-        try:
-            custom_provider = MempoolClient(network='testnet', denominator=100000000,
-                                            base_url='https://mempool.space/testnet/api/')
-            response = custom_provider.sendrawtransaction(raw_tx_hex)
+        # 3. Attempt broadcast resiliently
+        print("\nBroadcasting transaction resiliently...")
+        tx_hash = broadcast_resiliently(raw_tx_hex)
+        print(f"  - Success! TXID: {tx_hash}")
+        print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
 
-            if response and 'txid' in response:
-                tx_hash = response['txid']
-                print(f"  - Success via 'bitcoinlib'! TXID: {tx_hash}")
-                print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
-            else:
-                print(f"  - bitcoinlib broadcast failed. Response: {response}")
-        except Exception as e:
-            print(f"  - bitcoinlib broadcast failed with an exception: {e}")
 
     except Exception as e:
         print(f"\nAn unexpected error occurred during transaction creation: {e}")
