@@ -20,6 +20,9 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // TODO: Replace with your reCAPTCHA Enterprise site key
+  const reCaptchaEnterpriseSiteKey = '6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2';
+
   // Use the debug provider in debug mode, and the production providers in release mode.
   if (kDebugMode) {
     // Activate the debug provider for web.
@@ -37,7 +40,7 @@ void main() async {
     });
   } else {
     await FirebaseAppCheck.instance.activate(
-      webProvider: ReCaptchaEnterpriseProvider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
+      webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
       androidProvider: AndroidProvider.playIntegrity,
       appleProvider: AppleProvider.appAttest,
     );
