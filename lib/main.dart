@@ -310,6 +310,7 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
 
    Widget _buildInitialWidgets({required Key key}) {
     final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+    final showDropZone = kIsWeb || isDesktop;
     final theme = Theme.of(context);
 
     Widget dropZoneContent = Container(
@@ -323,7 +324,7 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (isDesktop) ...[
+          if (showDropZone) ...[
             const Text('Drop your file here'),
             const SizedBox(height: 10),
             const Text('or'),
@@ -357,7 +358,7 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           style: theme.textTheme.bodyLarge,
         ),
         const SizedBox(height: 24),
-        if (isDesktop)
+        if (showDropZone)
           DropTarget(
             onDragDone: (details) async {
               if (details.files.isNotEmpty) {
