@@ -169,7 +169,7 @@ if not firebase_admin._apps:
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 
 
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
