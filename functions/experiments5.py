@@ -19,83 +19,130 @@ from Crypto.Hash import RIPEMD160
 from bitcoinlib.services.mempool import MempoolClient
 
 
-# --- Custom mempool.space API fetcher for 'bit' library ---
+# --- Resilient, Multi-API Data Fetchers with Consensus ---
+
 def get_unspent_from_mempool(address):
-    """
-    Fetches UTXOs for a given testnet address from mempool.space API
-    and returns them in the format expected by the 'bit' library.
-    """
-    # First, get the current block height to calculate confirmations
+    """Fetches UTXOs from mempool.space."""
+    logging.info(f"Attempting to fetch UTXOs from mempool.space for {address}")
     tip_height_url = "https://mempool.space/testnet/api/blocks/tip/height"
-    try:
-        tip_height_r = requests.get(tip_height_url, timeout=10)
-        tip_height_r.raise_for_status()
-        current_height = int(tip_height_r.text)
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to get tip height from mempool.space: {e}")
-        # Fallback if the API is down, assume 0 confirmations
-        current_height = 0
+    tip_height_r = requests.get(tip_height_url, timeout=10)
+    tip_height_r.raise_for_status()
+    current_height = int(tip_height_r.text)
 
-    # Now, get the UTXOs for the address
     url = f"https://mempool.space/testnet/api/address/{address}/utxo"
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 404:
-            return []
-        r.raise_for_status()
-        utxos = r.json()
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to get UTXOs from mempool.space for address {address}: {e}")
-        return []
-
-    if not utxos:
-        return []
+    r = requests.get(url, timeout=10)
+    if r.status_code == 404: return []
+    r.raise_for_status()
+    utxos = r.json()
 
     unspents = []
     for utxo in utxos:
-        # The /utxo endpoint doesn't provide the script. We must fetch the full tx.
-        try:
-            tx_url = f"https://mempool.space/testnet/api/tx/{utxo['txid']}"
-            tx_r = requests.get(tx_url, timeout=10)
-            tx_r.raise_for_status()
-            tx_data = tx_r.json()
-            # The script is in the corresponding vout object
-            scriptpubkey = tx_data['vout'][utxo['vout']]['scriptpubkey']
-        except (requests.exceptions.RequestException, IndexError, KeyError) as e:
-            logging.warning(f"Could not fetch script for UTXO {utxo['txid']}:{utxo['vout']}. Skipping. Error: {e}")
-            continue  # Skip this UTXO if we can't get its script
+        tx_url = f"https://mempool.space/testnet/api/tx/{utxo['txid']}"
+        tx_r = requests.get(tx_url, timeout=10)
+        tx_r.raise_for_status()
+        tx_data = tx_r.json()
+        scriptpubkey = tx_data['vout'][utxo['vout']]['scriptpubkey']
 
-        # Calculate confirmations
-        if utxo.get('status', {}).get('confirmed') and current_height > 0:
-            confirmations = current_height - utxo['status']['block_height'] + 1
-        else:
-            confirmations = 0
+        confirmations = current_height - utxo['status']['block_height'] + 1 if utxo.get('status', {}).get(
+            'confirmed') else 0
 
-        # Create the Unspent object for the 'bit' library
-        unspents.append(
-            Unspent(
-                amount=utxo['value'],
-                confirmations=confirmations,
-                script=scriptpubkey,
-                txid=utxo['txid'],
-                txindex=utxo['vout']
-            )
-        )
+        unspents.append(Unspent(utxo['value'], confirmations, scriptpubkey, utxo['txid'], utxo['vout']))
+    logging.info(f"Successfully fetched {len(unspents)} UTXOs from mempool.space")
     return unspents
 
 
-def get_recommended_fee():
-    """Fetches the recommended fee rate from mempool.space."""
+def get_unspent_from_blockchair(address):
+    """Fetches UTXOs from blockchair.com."""
+    logging.info(f"Attempting to fetch UTXOs from blockchair.com for {address}")
+    url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=1000"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json().get('data', {})
+    utxos = data.get(address, {}).get('utxo', [])
+
+    unspents = []
+    for utxo in utxos:
+        unspents.append(
+            Unspent(utxo['value'], utxo['confirmations'], utxo['script_hex'], utxo['transaction_hash'], utxo['index']))
+    logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockchair.com")
+    return unspents
+
+
+def get_unspents_resiliently(address):
+    """Tries a list of API providers to fetch UTXOs until one succeeds."""
+    providers = [get_unspent_from_mempool, get_unspent_from_blockchair]
+    for provider_func in providers:
+        try:
+            return provider_func(address)
+        except Exception as e:
+            logging.warning(f"Provider {provider_func.__name__} failed: {e}")
+    raise Exception("All UTXO API providers failed.")
+
+
+def get_fee_from_mempool():
+    """Fetches recommended fee from mempool.space."""
+    logging.info("Attempting to fetch fee from mempool.space")
     url = "https://mempool.space/testnet/api/v1/fees/recommended"
-    try:
-        r = requests.get(url, timeout=10)
-        r.raise_for_status()
-        fees = r.json()
-        # Use the fee for confirmation within about an hour, or fallback to a reasonable default
-        return fees.get('hourFee', 20)
-    except requests.exceptions.RequestException as e:
-        logging.warning(f"Could not fetch recommended fee rate. Falling back to default. Error: {e}")
-        return 20  # Fallback fee rate in sat/vB
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    fees = r.json()
+    fee = fees.get('hourFee')
+    if fee:
+        logging.info(f"Got fee from mempool.space: {fee} sat/vB")
+        return fee
+    raise ValueError("Mempool.space fee API did not return 'hourFee'.")
+
+
+def get_fee_from_blockchair():
+    """Fetches recommended fee from blockchair.com."""
+    logging.info("Attempting to fetch fee from blockchair.com")
+    url = "https://api.blockchair.com/bitcoin/testnet/stats"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json().get('data', {})
+    # Blockchair provides fee in sat/byte, for a 30-60 minute confirmation.
+    fee_per_byte = data.get('suggested_transaction_fee_per_byte_sat')
+    if fee_per_byte:
+        logging.info(f"Got fee from blockchair.com: {fee_per_byte} sat/vB")
+        return fee_per_byte
+    raise ValueError("Blockchair stats API did not return 'suggested_transaction_fee_per_byte_sat'.")
+
+
+def get_fee_from_bitaps():
+    """Fetches recommended fee from bitaps.com."""
+    logging.info("Attempting to fetch fee from bitaps.com")
+    url = "https://api.bitaps.com/btc/testnet/v1/blockchain/fee/estimation"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    # Bitaps provides a 'medium' fee rate.
+    fee_per_byte = data.get('medium', {}).get('feeRate')
+    if fee_per_byte:
+        logging.info(f"Got fee from bitaps.com: {fee_per_byte} sat/vB")
+        return fee_per_byte
+    raise ValueError("Bitaps fee API did not return 'medium' fee rate.")
+
+
+def get_fee_with_consensus():
+    """
+    Tries multiple API providers to fetch recommended fees and uses the
+    lowest fee from the successful providers.
+    """
+    providers = [get_fee_from_mempool, get_fee_from_blockchair, get_fee_from_bitaps]
+    fees = []
+    for provider_func in providers:
+        try:
+            fees.append(provider_func())
+        except Exception as e:
+            logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
+
+    if fees:
+        lowest_fee = min(fees)
+        logging.info(f"Successfully fetched fees: {fees}. Using lowest value: {lowest_fee} sat/vB")
+        return lowest_fee
+    else:
+        logging.warning("All fee providers failed. Falling back to default fee.")
+        return 20  # Fallback fee
 
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
@@ -163,7 +210,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
             logging.info(f"Wallet loaded for address: {key.address}")
 
             # Manually fetch unspents using our reliable function to bypass 'bit's networking.
-            unspents = get_unspent_from_mempool(key.address)
+            unspents = get_unspents_resiliently(key.address)
             balance = sum(utxo.amount for utxo in unspents)
 
             if balance == 0:
@@ -172,7 +219,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
                                           "The wallet has no funds. Please use a testnet faucet.")
 
             # 2. Get recommended fee and create raw transaction hex.
-            recommended_fee_sat_per_byte = get_recommended_fee()
+            recommended_fee_sat_per_byte = get_fee_with_consensus()
             logging.info(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
 
             raw_tx_hex = key.create_transaction(
@@ -239,9 +286,9 @@ def main():
         key = PrivateKeyTestnet(wif=private_key_string)
         print(f"Wallet loaded for address: {key.address}")
 
-        print("Checking wallet balance using custom mempool.space function...")
+        print("Checking wallet balance using resilient custom functions...")
         # Manually fetch unspents and calculate balance.
-        unspents = get_unspent_from_mempool(key.address)
+        unspents = get_unspents_resiliently(key.address)
         balance = sum(utxo.amount for utxo in unspents)
         print(f"Wallet balance: {balance} satoshis")
 
@@ -253,8 +300,8 @@ def main():
 
         # 2. Get recommended fee and create raw tx hex.
         print("\nFetching recommended fee rate...")
-        recommended_fee_sat_per_byte = get_recommended_fee()
-        print(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
+        recommended_fee_sat_per_byte = get_fee_with_consensus()
+        print(f"Using fee rate: {recommended_fee_sat_per_byte} sat/vB")
 
         print(f"\nCreating transaction with message: '{file_digest}' using 'bit'...")
         raw_tx_hex = key.create_transaction(
