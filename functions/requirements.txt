@@ -7,3 +7,4 @@ bitcoinlib
 python-dotenv
 setuptools
 pycryptodome
+bit
