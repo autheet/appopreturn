@@ -86,37 +86,33 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         else:
             private_key_string = WALLET_PRIVATE_KEY.value
 
-            # --- Create with 'bit', broadcast with 'bitcoinlib' ---
-            logging.info(f"Creating transaction for digest: {file_digest}")
-
-            # 1. Create raw transaction hex with 'bit'
+            # The 'bit' library automatically handles UTXO selection, fees, and change.
             key = PrivateKeyTestnet(wif=private_key_string)
-            raw_tx_hex = key.create_transaction(
-                outputs=[],
+
+            blockchain_start_time = time.time()
+            tx_hash = key.send(
+                outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
+                         ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
                 message=file_digest,
-                leftover=key.address
+                combine=False  # We are providing a single message
             )
-            logging.info("Raw transaction hex created.")
+            transaction = key.create_transaction(
+                outputs=[("n43dqJnpGwWRxYW2qyp1dSydmAbMvuNBaX", 1, 'satoshi'),
+                         ("2NAqxCTii5xXx2V9ecKWbrzYWmyn18XGQ9W", 1, 'satoshi')],
+                message=file_digest,
+                combine=False  # We are providing a single message
 
-            # 2. Broadcast with 'bitcoinlib' using a custom provider
-            logging.info("Broadcasting with bitcoinlib...")
-            custom_provider = MempoolClient(network='testnet', denominator=100000000,
-                                            base_url='https://mempool.space/testnet/api/')
-            response = custom_provider.sendrawtransaction(raw_tx_hex)
+            )
 
-            if not (response and 'txid' in response):
-                raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL,
-                                          f"Blockchain broadcast failed. Response: {response}")
-
-            tx_hash = response['txid']
-            logging.info(f"Transaction broadcasted successfully. TXID: {tx_hash}")
+            blockchain_end_time = time.time()
+            logging.info(f"Blockchain transaction took: {blockchain_end_time - blockchain_start_time:.4f} seconds")
 
             # Storing the data in Firestore
             firestore_write_start = time.time()
             doc_ref.set({
                 'server_timestamp': firestore.SERVER_TIMESTAMP,
                 'transaction_id': tx_hash,
-                'network': 'testnet3'  # bitcoinlib uses 'testnet3'
+                'network': 'testnet3'
             })
             firestore_write_end = time.time()
             logging.info(f"Firestore write took: {firestore_write_end - firestore_write_start:.4f} seconds")
