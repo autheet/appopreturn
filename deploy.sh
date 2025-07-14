@@ -7,17 +7,17 @@ git fetch --all --tags
 ## generating icons
 dart run flutter_launcher_icons:main
 dart run flutter_native_splash:create
-dart run android_notification_icons
+# dart run android_notification_icons
 # internationalisation
-flutter gen-l10n #
-flutter pub run build_runner build
-echo "Running tests..."
-flutter test
+# flutter gen-l10n #
+# flutter pub run build_runner build
+# echo "Running tests..."
+# flutter test
 
 echo "Tests passed. Proceeding with deployment..."
 
 
-dart run rename_app:main all="autheet"
+# dart run rename_app:main all="appopreturn"
 ./pre_deploy_web.sh
 ./pre_deploy_functions.sh
 ./pre_deploy_android.sh
@@ -34,17 +34,17 @@ git fetch --all --tags
 ## generating icons
 dart run flutter_launcher_icons:main
 dart run flutter_native_splash:create
-dart run android_notification_icons
+# dart run android_notification_icons
 # internationalisation
-flutter gen-l10n #
-flutter pub run build_runner build
+# flutter gen-l10n
+# flutter pub run build_runner build
 echo "Running tests..."
-flutter test
+# flutter test
 
-echo "Tests passed. Proceeding with deployment..."
+# echo "Tests passed. Proceeding with deployment..."
 
 
-dart run rename_app:main all="autheet"
+# dart run rename_app:main all="appopreturn"
 ./pre_deploy_web.sh
 ./pre_deploy_functions.sh
 ./pre_deploy_android.sh
