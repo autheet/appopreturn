@@ -360,7 +360,6 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
             raw_tx_hex = key.create_transaction(
                 outputs=[],
                 message=file_digest,
-                leftover=key.segwit_address,
                 unspents=unspents,  # Provide the fetched UTXOs directly
                 fee=recommended_fee_sat_per_byte  # Set the fee rate
             )
@@ -431,7 +430,6 @@ def main():
         raw_tx_hex = key.create_transaction(
             outputs=[],
             message=file_digest,
-            leftover=key.segwit_address,
             unspents=unspents,  # Provide the fetched UTXOs directly
             fee=recommended_fee_sat_per_byte  # Set the fee rate
         )
