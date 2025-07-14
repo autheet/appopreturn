@@ -310,14 +310,15 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
 
    Widget _buildInitialWidgets({required Key key}) {
     final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+    final theme = Theme.of(context);
 
     Widget dropZoneContent = Container(
       height: 150,
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300, width: 2),
+        border: Border.all(color: theme.colorScheme.outline, width: 2),
         borderRadius: BorderRadius.circular(8),
-        color: Colors.grey.shade50,
+        color: theme.colorScheme.surfaceVariant,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -350,10 +351,10 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Select a file to generate a unique, timestamped digest on the blockchain.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, color: Colors.black54),
+          style: theme.textTheme.bodyLarge,
         ),
         const SizedBox(height: 24),
         if (isDesktop)
@@ -373,6 +374,11 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   }
 
   Widget _buildResultWidgets({required Key key}) {
+    final theme = Theme.of(context);
+    final digestBackgroundColor = theme.brightness == Brightness.dark
+        ? theme.colorScheme.surfaceVariant
+        : const Color(0xFFECEFF1);
+
     return Column(
       key: key,
       mainAxisSize: MainAxisSize.min,
@@ -397,7 +403,11 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
         CopyableText(
           label: "Your data's unique digest:",
           text: _digest!,
-          textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 13, backgroundColor: Color(0xFFECEFF1)),
+          textStyle: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 13,
+            backgroundColor: digestBackgroundColor,
+          ),
         ),
         const SizedBox(height: 16),
         if (_transactionId == null) ...[
