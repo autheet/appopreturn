@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main() async {
@@ -255,9 +256,7 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
     }
 
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
+    if (!await launchUrl(uri)) {
       print('Could not launch $url');
     }
   }
@@ -395,11 +394,10 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
         const SizedBox(height: 16),
         SelectableText('Source: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-        const Text("Your data's unique digest:"),
-        const SizedBox(height: 5),
-        SelectableText(
-          _digest!,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 13, backgroundColor: Color(0xFFECEFF1)),
+        CopyableText(
+          label: "Your data's unique digest:",
+          text: _digest!,
+          textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 13, backgroundColor: Color(0xFFECEFF1)),
         ),
         const SizedBox(height: 16),
         if (_transactionId == null) ...[
@@ -426,11 +424,10 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
           ),
           const SizedBox(height: 8),
-          const Text('Your proof is permanently recorded. Here is the Transaction ID:'),
-          const SizedBox(height: 5),
-          SelectableText(
-            _transactionId!,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          CopyableText(
+            label: 'Your proof is permanently recorded. Here is the Transaction ID:',
+            text: _transactionId!,
+            textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 13),
           ),
           const SizedBox(height: 8),
           SelectableText('Network: $_network'),
@@ -441,6 +438,59 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
             label: const Text('View Transaction on Blockchain Explorer'),
           ),
         ]
+      ],
+    );
+  }
+}
+
+class CopyableText extends StatelessWidget {
+  final String text;
+  final String? label;
+  final TextStyle? textStyle;
+
+  const CopyableText({
+    super.key,
+    required this.text,
+    this.label,
+    this.textStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final defaultStyle = const TextStyle(fontFamily: 'monospace', fontSize: 13);
+    final effectiveTextStyle = textStyle ?? defaultStyle;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null) ...[
+          Text(label!),
+          const SizedBox(height: 5),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: SelectableText(
+                text,
+                style: effectiveTextStyle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.copy, size: 18),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: text));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Copied to clipboard'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
+              tooltip: 'Copy',
+            ),
+          ],
+        ),
       ],
     );
   }
