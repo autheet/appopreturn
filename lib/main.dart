@@ -23,7 +23,8 @@ void main() async {
 
   // On release builds, check if the reCAPTCHA key is provided.
   if (!kDebugMode && reCaptchaEnterpriseSiteKey.isEmpty) {
-    throw Exception('RECAPTCHA_ENTERPRISE_SITE_KEY is not set. Please provide it during the build process using --dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=YOUR_KEY');
+    throw Exception(
+        'RECAPTCHA_ENTERPRISE_SITE_KEY is not set. Please provide it during the build process using --dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY=YOUR_KEY');
   }
 
   await Firebase.initializeApp(
@@ -36,7 +37,7 @@ void main() async {
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.debug,
       appleProvider: AppleProvider.debug,
-      webProvider: ReCaptchaV3Provider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
+      webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
     );
     FirebaseAppCheck.instance.onTokenChange.listen((token) {
       if (token != null) {
@@ -51,7 +52,7 @@ void main() async {
       appleProvider: AppleProvider.appAttest,
     );
   }
-  
+
   runApp(const AppOpReturn());
 }
 
@@ -164,13 +165,14 @@ class CreateProofPage extends StatefulWidget {
   State<CreateProofPage> createState() => _CreateProofPageState();
 }
 
-class _CreateProofPageState extends State<CreateProofPage> with TickerProviderStateMixin {
+class _CreateProofPageState extends State<CreateProofPage>
+    with TickerProviderStateMixin {
   String? _fileName;
   String? _digest;
   String? _transactionId;
   String? _network;
   bool _loading = false;
-  
+
   late final AnimationController _breathingController;
   late final Animation<double> _breathingAnimation;
 
@@ -181,10 +183,9 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    
+
     _breathingAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut)
-    );
+        CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut));
   }
 
   @override
@@ -217,7 +218,8 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
   }
 
   Future<void> _selectFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(withData: true);
+    FilePickerResult? result =
+        await FilePicker.platform.pickFiles(withData: true);
     if (result != null && result.files.single.bytes != null) {
       await _processData(result.files.single.name, result.files.single.bytes!);
     }
@@ -225,10 +227,12 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
 
   Future<void> _sendToBlockchain() async {
     if (_digest == null) return;
-    setState(() { _loading = true; });
+    setState(() {
+      _loading = true;
+    });
     try {
-      final HttpsCallable callable =
-          FirebaseFunctions.instance.httpsCallable('process_appopreturn_request_free');
+      final HttpsCallable callable = FirebaseFunctions.instance
+          .httpsCallable('process_appopreturn_request_free');
       final result = await callable.call(<String, dynamic>{'digest': _digest});
       setState(() {
         _transactionId = result.data['transaction_id'];
@@ -291,10 +295,13 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
             // Animated Background Icon
             AnimatedOpacity(
               duration: const Duration(milliseconds: 500),
-              opacity: _digest != null ? 0.05 : 0.0, // Fades in when there's a result
+              opacity: _digest != null
+                  ? 0.05
+                  : 0.0, // Fades in when there's a result
               child: ScaleTransition(
                 scale: _breathingAnimation,
-                child: const Icon(Icons.fingerprint, size: 250, color: Colors.blueAccent),
+                child: const Icon(Icons.fingerprint,
+                    size: 250, color: Colors.blueAccent),
               ),
             ),
             // Main Content
@@ -325,8 +332,9 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
     return _buildInitialWidgets(key: const ValueKey('initial'));
   }
 
-   Widget _buildInitialWidgets({required Key key}) {
-    final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+  Widget _buildInitialWidgets({required Key key}) {
+    final isDesktop =
+        !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
     final showDropZone = kIsWeb || isDesktop;
     final theme = Theme.of(context);
 
@@ -416,7 +424,8 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           ],
         ),
         const SizedBox(height: 16),
-        SelectableText('Source: $_fileName', style: const TextStyle(fontWeight: FontWeight.bold)),
+        SelectableText('Source: $_fileName',
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
         CopyableText(
           label: "Your data's unique digest:",
@@ -449,11 +458,13 @@ class _CreateProofPageState extends State<CreateProofPage> with TickerProviderSt
           const Divider(height: 32),
           const Text(
             'Success!',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
           ),
           const SizedBox(height: 8),
           CopyableText(
-            label: 'Your proof is permanently recorded. Here is the Transaction ID:',
+            label:
+                'Your proof is permanently recorded. Here is the Transaction ID:',
             text: _transactionId!,
             textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 13),
           ),
