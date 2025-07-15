@@ -105,6 +105,22 @@ def get_unspent_from_blockcypher(address):
     return unspents
 
 
+def get_unspent_from_sochain(address):
+    """Fetches UTXOs from sochain.com."""
+    logging.info(f"Attempting to fetch UTXOs from sochain.com for {address}")
+    url = f"https://sochain.com/api/v2/get_tx_unspent/BTCTEST/{address}"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json().get('data', {})
+    utxos = data.get('txs', [])
+    # SoChain value is in BTC, convert to satoshis
+    unspents = [Unspent(int(decimal.Decimal(u['value']) * 100_000_000), u['confirmations'], u['script_hex'], u['txid'],
+                        u['output_no']) for u in utxos]
+    logging.info(f"Successfully fetched {len(unspents)} UTXOs from sochain.com")
+    return unspents
+
+
+
 def get_unspent_from_blockstream(address):
     """Fetches UTXOs from blockstream.info."""
     logging.info(f"Attempting to fetch UTXOs from blockstream.info for {address}")
@@ -142,16 +158,30 @@ def get_unspents_resiliently(address):
         get_unspent_from_blockchair,
         get_unspent_from_bitaps,
         get_unspent_from_blockcypher,
-        get_unspent_from_blockstream  # New provider added
+        get_unspent_from_blockstream,  # New provider added
+        get_unspent_from_sochain
     ]
     random.shuffle(providers)
+    unspentsdict = {}
+
+    def find_duplicate_value_oneliner(data_dict):
+        """Finds the first duplicate value in a dictionary in one line."""
+        values = list(data_dict.values())
+        return next((v for i, v in enumerate(values) if v in values[:i]), None)
+
     for provider_func in providers:
         try:
             unspents = provider_func(address)
             balance = sum(utxo.amount for utxo in unspents)
+
             if balance > 0:
                 logging.info(f"Successfully fetched UTXOs using {provider_func.__name__}")
-                return unspents
+                if not unspents or unspents != []:
+                    unspentsdict[provider_func.__name__] = unspents
+                if len(unspentsdict) >= 2:
+                    if find_duplicate_value_oneliner(unspentsdict):
+                        print(f"Duplicate UTXOs found in {unspentsdict}")
+                        return find_duplicate_value_oneliner(unspentsdict)
             if balance == 0:
                 logging.error(f"Wallet for address {key.address} has no funds following {provider_func.__name__}.")
 
