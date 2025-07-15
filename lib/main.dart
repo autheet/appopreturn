@@ -346,9 +346,9 @@ class _CreateProofPageState extends State<CreateProofPage>
           children: [
             // Animated Background Icon
             AnimatedOpacity(
-              duration: const Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 1500),
               opacity: _digest != null
-                  ? 0.05
+                  ? 0.25
                   : 0.0, // Fades in when there's a result
               child: ScaleTransition(
                 scale: _breathingAnimation,
