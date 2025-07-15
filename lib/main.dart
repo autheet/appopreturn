@@ -167,7 +167,7 @@ class _AppShellState extends State<AppShell> {
                       _selectedIndex = index;
                     });
                   },
-                  labelType: NavigationRailLabelType.all,
+                  labelType: NavigationRailLabelType.selected,
                   leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
                   destinations: const <NavigationRailDestination>[
                     NavigationRailDestination(
@@ -179,11 +179,6 @@ class _AppShellState extends State<AppShell> {
                       icon: Icon(Icons.help_outline),
                       selectedIcon: Icon(Icons.help),
                       label: Text('Help'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.history_outlined),
-                      selectedIcon: Icon(Icons.history),
-                      label: Text('My Proofs'),
                     ),
                     NavigationRailDestination(
                       icon: Icon(Icons.settings_outlined),
