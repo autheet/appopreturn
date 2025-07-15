@@ -146,6 +146,11 @@ def get_unspents_resiliently(address):
         get_unspent_from_blockchair,
         get_unspent_from_bitaps,
         get_unspent_from_blockcypher,
+        get_unspent_from_blockstream,
+        get_unspent_from_mempool,
+        get_unspent_from_blockchair,
+        get_unspent_from_bitaps,
+        get_unspent_from_blockcypher,
         get_unspent_from_blockstream
     ]
     random.shuffle(providers)
