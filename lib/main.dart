@@ -34,14 +34,15 @@ void main() async {
 
   // Use the debug provider in debug mode, and the production providers in release mode.
   if (kDebugMode) {
+    // In debug mode, use the debug provider for Android.
     await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.debug,
+      androidProvider: AndroidProvider.debug, // Use the debug provider
+      appleProvider: AppleProvider.appAttest,
       webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
     );
     FirebaseAppCheck.instance.onTokenChange.listen((token) {
       if (token != null) {
-        debugPrint('App Check debug token: $token');
+        print('App Check debug token: $token');
       }
     });
   } else {
@@ -61,24 +62,24 @@ class AppOpReturn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Define the light theme based on the existing style
+    const seedColor = Color(0xFF0D47A1); // Deep Blue
+
+    // Define the light theme based on the seed color
     final lightTheme = ThemeData(
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
+        seedColor: seedColor,
         brightness: Brightness.light,
       ),
       useMaterial3: true,
-      scaffoldBackgroundColor: const Color(0xFFECEFF1),
     );
 
     // Define a corresponding dark theme
     final darkTheme = ThemeData(
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
+        seedColor: seedColor,
         brightness: Brightness.dark,
       ),
       useMaterial3: true,
-      // Scaffold background will be dark by default with a dark color scheme
     );
 
     return MaterialApp(
@@ -129,6 +130,7 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
             bottomNavigationBar: BottomNavigationBar(
+              type: BottomNavigationBarType.fixed, // This is the fix
               items: const <BottomNavigationBarItem>[
                 BottomNavigationBarItem(
                   icon: Icon(Icons.add_box_outlined),
@@ -139,6 +141,11 @@ class _AppShellState extends State<AppShell> {
                   icon: Icon(Icons.help_outline),
                   activeIcon: Icon(Icons.help),
                   label: 'Help',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.history_outlined),
+                  activeIcon: Icon(Icons.history),
+                  label: 'My Proofs',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.settings_outlined),
@@ -166,8 +173,7 @@ class _AppShellState extends State<AppShell> {
                       _selectedIndex = index;
                     });
                   },
-                  labelType: NavigationRailLabelType.selected,
-
+                  labelType: NavigationRailLabelType.all,
                   leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
                   destinations: const <NavigationRailDestination>[
                     NavigationRailDestination(
@@ -179,6 +185,11 @@ class _AppShellState extends State<AppShell> {
                       icon: Icon(Icons.help_outline),
                       selectedIcon: Icon(Icons.help),
                       label: Text('Help'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.history_outlined),
+                      selectedIcon: Icon(Icons.history),
+                      label: Text('My Proofs'),
                     ),
                     NavigationRailDestination(
                       icon: Icon(Icons.settings_outlined),
@@ -346,9 +357,9 @@ class _CreateProofPageState extends State<CreateProofPage>
           children: [
             // Animated Background Icon
             AnimatedOpacity(
-              duration: const Duration(milliseconds: 1500),
+              duration: const Duration(milliseconds: 500),
               opacity: _digest != null
-                  ? 0.25
+                  ? 0.05
                   : 0.0, // Fades in when there's a result
               child: ScaleTransition(
                 scale: _breathingAnimation,
