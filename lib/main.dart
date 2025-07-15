@@ -34,8 +34,8 @@ void main() async {
   if (kDebugMode) {
     // In debug mode, we can use a hardcoded reCAPTCHA v3 key for easier testing.
     await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.debug,
+      androidProvider: AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.appAttest,
       webProvider: ReCaptchaV3Provider(reCaptchaEnterpriseSiteKey),
     );
     FirebaseAppCheck.instance.onTokenChange.listen((token) {
