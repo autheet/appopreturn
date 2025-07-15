@@ -320,10 +320,22 @@ class _CreateProofPageState extends State<CreateProofPage>
 
   Widget _buildContent() {
     if (_loading) {
-      return const Padding(
-        key: ValueKey('loading'),
-        padding: EdgeInsets.symmetric(vertical: 60.0),
-        child: CircularProgressIndicator(),
+      return Padding(
+        key: const ValueKey('loading'),
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 24),
+            Text(
+              'Creating your transaction. This may take up to two minutes.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ],
+        ),
       );
     }
     if (_digest != null) {
