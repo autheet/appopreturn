@@ -383,8 +383,9 @@ def broadcast_resiliently(tx_hex):
                     return txid
             except Exception as e:
                 logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
-            if len(txids) >= 1:
-                return next(iter(txids.values()))
+        if len(txids) >= 1:
+            logging.warning(f"only one broadcast provider succeeded: {txids}")
+            return next(iter(txids.values()))
     else:
         raise Exception("All broadcast API providers failed.")
 
