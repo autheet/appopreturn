@@ -48,7 +48,7 @@ android {
     }
     buildTypes {
         release {
-            // GEMINI DONT CHANGE THAT!: TODO: Add your own signing config for the release build.
+            // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
 
             signingConfig = signingConfigs.getByName("release")
@@ -61,5 +61,9 @@ flutter {
 }
 
 dependencies {
-    implementation("com.google.android.play:integrity:1.4.0")
+    // Import the BoM for the Firebase platform
+    implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
+    // Add the dependencies for the App Check libraries
+    // When using the BoM, you don't specify versions in Firebase library dependencies
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
 }
