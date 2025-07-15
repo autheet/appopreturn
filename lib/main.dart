@@ -167,6 +167,7 @@ class _AppShellState extends State<AppShell> {
                     });
                   },
                   labelType: NavigationRailLabelType.selected,
+
                   leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
                   destinations: const <NavigationRailDestination>[
                     NavigationRailDestination(
