@@ -1,25 +1,17 @@
-# Appopreturn
-[https://appopreturn.autheet.com]
-## Proof that you had an idea first, by putting a digest into the blockchain. 
+# AppOpReturn - Proof of Existence
 
-Appopreturn creates a unique digest of your data locally using state of the art cryptography. The digest value is then sent to our servers and we make an OP\_RETURN transaction with your digest value to the bitcoin blockchain. For free users we put that digest in the bitcoin testnet blockchain, for paying users we make the transaction in the bitcoin network.   
-we provide you a link to the transaction. Keep your data safe. Feel free to use our service to calculate the digest later again. For pro users we have upcoming features like a digest transaction history and much more, so you don't have to keep track of your digests.   
-It's the ideal tool for artists: imagine you have a great idea written in a file. It might be a photo, a text or even a program. You can settle the digest in the blockchain and together with the file you can later prove that you had the original idea. Publish with a pseudonym first, and if you have reached a breakthrough, proof that you have been the first\!
+A simple, secure application to create a timestamped, blockchain-based proof of existence for any digital file.
 
+This application generates a unique cryptographic fingerprint (a SHA-256 digest) of a file you select. It then permanently embeds this fingerprint into a public blockchain. This creates an immutable and verifiable proof that your data existed at an exact moment in time, without ever revealing the data itself.
 
-# myapp
+## How it Works
 
-A new Flutter project.
+1.  **Select a File**: You choose any file on your device.
+2.  **Generate Proof**: The application calculates the file's SHA-256 digest locally in your browser or on your device. **Your file's contents are never uploaded or shared.**
+3.  **Notarize on Blockchain**: The unique digest is sent to be included in a blockchain transaction. This transaction is a permanent, publicly verifiable record.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+-   **Privacy-Focused**: Your file content never leaves your local device.
+-   **Cross-Platform**: Works on Web, Android, iOS, macOS, Windows, and Linux thanks to Flutter.
+-   **Secure & Verifiable**: Uses the SHA-256 cryptographic standard, and proofs can be verified on a public blockchain explorer.
