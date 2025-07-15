@@ -176,7 +176,8 @@ def get_unspents_resiliently(address):
         except Exception as e:
             print(f"Provider {provider_func.__name__} failed: {e}")
     if len(unspentsdict) == 1:
-            return unspentsdict[0]
+        logging.warning(f"Only one UTXO provider succeeded for address {key.address}.")
+        return unspentsdict[0]
     raise Exception("All UTXO API providers failed.")
 
 
