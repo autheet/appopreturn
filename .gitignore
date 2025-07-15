@@ -9,6 +9,10 @@
 .history
 .svn/
 
+# secrets
+ios/Runner/GoogleService-Info.plist
+
+
 # Flutter/Dart
 .dart_tool/
 .flutter-plugins
