@@ -10,6 +10,7 @@ from firebase_functions.params import SecretParam
 from os.path import join, dirname
 import requests
 import random
+import statistics  # Added for median calculation in fees
 
 # Import the library and the specific module we need to patch
 from bit import PrivateKeyTestnet, crypto
@@ -104,20 +105,52 @@ def get_unspent_from_blockcypher(address):
     return unspents
 
 
+def get_unspent_from_blockstream(address):
+    """Fetches UTXOs from blockstream.info."""
+    logging.info(f"Attempting to fetch UTXOs from blockstream.info for {address}")
+    tip_height_url = "https://blockstream.info/testnet/api/blocks/tip/height"
+    tip_height_r = requests.get(tip_height_url, timeout=5)
+    tip_height_r.raise_for_status()
+    current_height = int(tip_height_r.text)
+
+    url = f"https://blockstream.info/testnet/api/address/{address}/utxo"
+    r = requests.get(url, timeout=5)
+    r.raise_for_status()
+    utxos = r.json()
+
+    unspents = []
+    for utxo in utxos:
+        tx_url = f"https://blockstream.info/testnet/api/tx/{utxo['txid']}"
+        tx_r = requests.get(tx_url, timeout=2)
+        tx_r.raise_for_status()
+        tx_data = tx_r.json()
+        scriptpubkey = tx_data['vout'][utxo['vout']]['scriptpubkey']
+
+        confirmations = current_height - utxo['status']['block_height'] + 1 if utxo.get('status', {}).get(
+            'confirmed') else 0
+
+        unspents.append(Unspent(utxo['value'], confirmations, scriptpubkey, utxo['txid'], utxo['vout']))
+    logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockstream.info")
+    if unspents != []:
+        return unspents
+
+
 def get_unspents_resiliently(address):
     """Tries a list of API providers to fetch UTXOs until one succeeds."""
     providers = [
         get_unspent_from_mempool,
         get_unspent_from_blockchair,
         get_unspent_from_bitaps,
-        get_unspent_from_blockcypher
+        get_unspent_from_blockcypher,
+        get_unspent_from_blockstream  # New provider added
     ]
     random.shuffle(providers)
     for provider_func in providers:
         try:
             unspents = provider_func(address)
             balance = sum(utxo.amount for utxo in unspents)
-            if balance >0:
+            if balance > 0:
+                logging.info(f"Successfully fetched UTXOs using {provider_func.__name__}")
                 return unspents
             if balance == 0:
                 logging.error(f"Wallet for address {key.address} has no funds following {provider_func.__name__}.")
@@ -159,11 +192,12 @@ def get_fee_from_blockchair():
 def get_fee_from_bitaps():
     """Fetches recommended fee from bitaps.com."""
     print("Attempting to fetch fee from bitaps.com")
-    url = "https://api.bitaps.com/btc/testnet/v1/blockchain/fee/estimation"
+    url = "https://api.bitaps.com/btc/testnet/v1/mempool/transactions"
     r = requests.get(url, timeout=3)
     r.raise_for_status()
     data = r.json()
-    fee_per_byte = data.get('medium', {}).get('feeRate')
+    # Using medium fee for a balance
+    fee_per_byte = sum(item['feeRate'] for item in response_json['data']['list']) / len(response_json['data']['list'])
     if fee_per_byte:
         print(f"Got fee from bitaps.com: {fee_per_byte} sat/vB")
         return fee_per_byte
@@ -186,17 +220,32 @@ def get_fee_from_blockcypher():
     raise ValueError("Blockcypher API did not return 'medium_fee_per_kb'.")
 
 
+def get_fee_from_blockstream():
+    """Fetches recommended fee from blockstream.info."""
+    print("Attempting to fetch fee from blockstream.info")
+    url = "https://blockstream.info/testnet/api/fee-estimates"
+    r = requests.get(url, timeout=3)
+    r.raise_for_status()
+    fees = r.json()
+    # Using fee for 6 blocks (~1 hour) as a medium priority fee
+    min_fee = min(fees, key=fees.get)
+    fee_per_byte = fees.get(min_fee)
+    if fee_per_byte:
+        print(f"Got fee from blockstream.info: {fee_per_byte} sat/vB")
+        return fee_per_byte
+    raise ValueError("Blockstream fee API did not return a fee for 6 block confirmation.")
+
+
 def get_fee_with_consensus():
     """
-    Tries multiple API providers to fetch recommended fees.
-    Shuffles providers and returns the average fee if at least two providers
-    deliver a fee, otherwise falls back to a default.
+    Tries multiple API providers to fetch recommended fees and uses the median.
     """
     providers = [
         get_fee_from_mempool,
         get_fee_from_blockchair,
         get_fee_from_bitaps,
-        get_fee_from_blockcypher
+        get_fee_from_blockcypher,
+        get_fee_from_blockstream  # New provider added
     ]
     random.shuffle(providers)  # Shuffle the providers for better distribution
     fees = []
@@ -225,7 +274,14 @@ def get_fee_with_consensus():
         return chosen_fee
     else:
         logging.warning("All fee providers failed. Falling back to default fee.")
-        return 1  # Fallback fee, slightly increased for safety
+        return 1  # Fallback fee
+
+    # Using the median fee is more robust against outliers than the average.
+    chosen_fee = int(statistics.median(fees))
+    print(f"Successfully fetched fees: {fees}. Using median value: {chosen_fee} sat/vB")
+
+    # Ensure fee is at least 1 sat/vB
+    return max(1, chosen_fee)
 
 
 def broadcast_with_mempool(tx_hex):
@@ -330,6 +386,8 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app()
 
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
+
+
 def transact(private_key_string, file_digest):
     # 1. Load wallet and explicitly check balance before creating transaction
     key = PrivateKeyTestnet(wif=private_key_string)
@@ -354,6 +412,7 @@ def transact(private_key_string, file_digest):
             return {"tx_hash": tx_hash, 'network': 'testnet3'}
         except Exception as e:
             print(f"Attempt {i + 1} of 3 failed: {e}")
+
 
 @https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
@@ -390,9 +449,8 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
 
             # --- Strategy: Create with 'bit', broadcast with 'bitcoinlib' ---
             print(f"Creating transaction for digest: {file_digest}")
-            tx = transact(private_key_string,file_digest)
+            tx = transact(private_key_string, file_digest)
             tx_hash = tx['tx_hash']
-
 
             # 4. Store the new transaction data in Firestore
             firestore_write_start = time.time()
