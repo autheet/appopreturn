@@ -25,7 +25,6 @@ from bitcoinlib.services.mempool import MempoolClient
 session = requests.Session()
 
 
-
 # --- Resilient, Multi-API Data Fetchers with Consensus ---
 
 # Decorator for retrying API calls with exponential backoff
@@ -429,8 +428,13 @@ def transaction_function(digest: str, private_key_string: str, db_client=None) -
 
     if balance == 0:
         logging.error(f"Wallet for address {key.address} has no funds.")
-        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
-                                  "The wallet has no funds. Please use a testnet faucet.")
+        # For local testing, we print a user-friendly message.
+        # For Cloud Functions, this will be caught and converted to HttpsError.
+        if db_client is None:  # Running in local main()
+            raise ValueError("The wallet has no funds. Please use a testnet faucet.")
+        else:  # Running in Cloud Function
+            raise https_fn.HttpsError(https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                                      "The wallet has no funds. Please use a testnet faucet.")
 
     # Get recommended fee using the random-retry-average logic
     recommended_fee_sat_per_byte = get_fee_with_random_retry_and_average()
@@ -466,6 +470,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     Handles requests from free users for the testnet blockchain.
     Creates transactions with 'bit' (patched) and broadcasts with 'bitcoinlib'.
     """
+
     # Initialize Firebase Admin SDK once globally for performance.
     # This allows the initialized instances to be reused across multiple invocations
     # of the same function instance, reducing cold start times and overall execution latency.
@@ -481,6 +486,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         if not file_digest:
             raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INVALID_ARGUMENT, "Missing file digest.")
 
+        # Firestore client is already initialized globally as 'db'
         doc_ref = db.collection('digestdata_public').document(file_digest)
 
         firestore_read_start = time.time()
@@ -501,7 +507,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         else:
             private_key_string = WALLET_PRIVATE_KEY.value
 
-            # Call the new transaction_function
+            # Call the new transaction_function, passing the global db client
             result = transaction_function(file_digest, private_key_string, db_client=db)
 
             total_end_time = time.time()
@@ -512,7 +518,11 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         logging.error(f"Caught unhandled exception: {e}", exc_info=True)
         total_end_time = time.time()
         logging.info(f"Total execution time with error: {total_end_time - total_start_time:.4f} seconds")
-        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL, f"An internal error occurred: {e}")
+        # Re-raise HttpsError if it's already one, otherwise wrap general exceptions
+        if isinstance(e, https_fn.HttpsError):
+            raise e
+        else:
+            raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INTERNAL, f"An internal error occurred: {e}")
 
 
 def main():
@@ -531,8 +541,8 @@ def main():
     print("--- Strategy: Create (bit) -> Broadcast (bitcoinlib with MempoolClient) ---")
 
     try:
-        # Call the new transaction_function
-        result = transaction_function(file_digest, private_key_string, db_client=None)  # No Firestore for local main
+        # Call the new transaction_function, passing None for db_client as it's local testing
+        result = transaction_function(file_digest, private_key_string, db_client=None)
 
         print(f"  - Success! TXID: {result['transaction_id']}")
         print(f"  - View on block explorer: https://mempool.space/testnet/tx/{result['transaction_id']}")
