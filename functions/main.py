@@ -176,7 +176,7 @@ def get_unspents_resiliently(address):
         except Exception as e:
             print(f"Provider {provider_func.__name__} failed: {e}")
     if len(unspentsdict) >= 1:
-        logging.warning(f"No consensous or only one UTXO provider succeeded for address {key.address}.")
+        logging.warning(f"No consensous or only one UTXO provider succeeded.")
         return next(iter(unspentsdict.values()))
     raise Exception("All UTXO API providers failed.")
 
