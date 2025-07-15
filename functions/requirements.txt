@@ -1,8 +1,10 @@
 # Add the Firebase SDK for Python
 firebase-functions
-# Add the bit library for bitcoin transactions
-bit
+firebase-admin
+# Use the 'bitcoinlib' library for a high-level interface to bitcoin transactions
+bitcoinlib
 # Keep dotenv for local testing with .env files
 python-dotenv
-# Add the bitcoinlib library for bitcoin transactions
-bitcoinlib
+setuptools
+pycryptodome
+bit
