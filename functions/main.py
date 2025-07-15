@@ -132,7 +132,7 @@ def get_fee_from_mempool():
     """Fetches recommended fee from mempool.space."""
     print("Attempting to fetch fee from mempool.space")
     url = "https://mempool.space/testnet/api/v1/fees/recommended"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     fees = r.json()
     fee = fees.get('economyFee')
@@ -146,7 +146,7 @@ def get_fee_from_blockchair():
     """Fetches recommended fee from blockchair.com."""
     print("Attempting to fetch fee from blockchair.com")
     url = "https://api.blockchair.com/bitcoin/testnet/stats"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=3)
     r.raise_for_status()
     data = r.json().get('data', {})
     fee_per_byte = data.get('suggested_transaction_fee_per_byte_sat')
@@ -160,7 +160,7 @@ def get_fee_from_bitaps():
     """Fetches recommended fee from bitaps.com."""
     print("Attempting to fetch fee from bitaps.com")
     url = "https://api.bitaps.com/btc/testnet/v1/blockchain/fee/estimation"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=3)
     r.raise_for_status()
     data = r.json()
     fee_per_byte = data.get('medium', {}).get('feeRate')
@@ -174,7 +174,7 @@ def get_fee_from_blockcypher():
     """Fetches recommended fee from blockcypher.com."""
     print("Attempting to fetch fee from blockcypher.com")
     url = "https://api.blockcypher.com/v1/btc/test3"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=3)
     r.raise_for_status()
     data = r.json()
     # Fee is in satoshis per kilobyte, convert to sat/vB
@@ -334,24 +334,26 @@ def transact(private_key_string, file_digest):
     # 1. Load wallet and explicitly check balance before creating transaction
     key = PrivateKeyTestnet(wif=private_key_string)
     print(f"Wallet loaded for address: {key.address}")
-    recommended_fee_sat_per_byte = get_fee_with_consensus()
-    print(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
-    # Manually fetch unspents using our reliable function to bypass 'bit's networking.
-    unspents = get_unspents_resiliently(key.address)
+    for i in range(3):
+        try:
+            recommended_fee_sat_per_byte = get_fee_with_consensus()
+            print(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
+            # Manually fetch unspents using our reliable function to bypass 'bit's networking.
+            unspents = get_unspents_resiliently(key.address)
 
+            raw_tx_hex = key.create_transaction(
+                outputs=[],
+                message=file_digest,
+                unspents=unspents,  # Provide the fetched UTXOs directly
+                fee=recommended_fee_sat_per_byte  # Set the fee rate
+            )
+            print("Raw transaction hex created.")
 
-
-    raw_tx_hex = key.create_transaction(
-        outputs=[],
-        message=file_digest,
-        unspents=unspents,  # Provide the fetched UTXOs directly
-        fee=recommended_fee_sat_per_byte  # Set the fee rate
-    )
-    print("Raw transaction hex created.")
-
-    # 3. Broadcast transaction resiliently
-    tx_hash = broadcast_resiliently(raw_tx_hex)
-    return {"tx_hash": tx_hash, 'network': 'testnet3'}
+            # 3. Broadcast transaction resiliently
+            tx_hash = broadcast_resiliently(raw_tx_hex)
+            return {"tx_hash": tx_hash, 'network': 'testnet3'}
+        except Exception as e:
+            print(f"Attempt {i + 1} of 3 failed: {e}")
 
 @https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
@@ -391,6 +393,7 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
             tx = transact(private_key_string,file_digest)
             tx_hash = tx['tx_hash']
 
+
             # 4. Store the new transaction data in Firestore
             firestore_write_start = time.time()
             doc_ref.set({
@@ -428,6 +431,7 @@ def main():
     print("--- Strategy: Create (bit) -> Broadcast (bitcoinlib with MempoolClient) ---")
 
     try:
+
         tx = transact(private_key_string, file_digest)
         print("\nBroadcasting transaction resiliently...")
         tx_hash = tx['tx_hash']
