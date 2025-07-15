@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:appopreturn/firebase_options.dart';
+import 'package:appopreturn/help_page.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -33,15 +34,14 @@ void main() async {
 
   // Use the debug provider in debug mode, and the production providers in release mode.
   if (kDebugMode) {
-    // In debug mode, we can use a hardcoded reCAPTCHA v3 key for easier testing.
     await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.playIntegrity,
-      appleProvider: AppleProvider.appAttest,
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.debug,
       webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
     );
     FirebaseAppCheck.instance.onTokenChange.listen((token) {
       if (token != null) {
-        print('App Check debug token: $token');
+        debugPrint('App Check debug token: $token');
       }
     });
   } else {
@@ -103,6 +103,7 @@ class _AppShellState extends State<AppShell> {
 
   static const List<Widget> _widgetOptions = <Widget>[
     CreateProofPage(),
+    HelpPage(),
     Text('My Proofs Page (Not Implemented)'),
     Text('Settings Page (Not Implemented)'),
   ];
@@ -135,9 +136,9 @@ class _AppShellState extends State<AppShell> {
                   label: 'Create Proof',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.history_outlined),
-                  activeIcon: Icon(Icons.history),
-                  label: 'My Proofs',
+                  icon: Icon(Icons.help_outline),
+                  activeIcon: Icon(Icons.help),
+                  label: 'Help',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.settings_outlined),
@@ -165,7 +166,8 @@ class _AppShellState extends State<AppShell> {
                       _selectedIndex = index;
                     });
                   },
-                  labelType: NavigationRailLabelType.all,
+                  labelType: NavigationRailLabelType.selected,
+
                   leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
                   destinations: const <NavigationRailDestination>[
                     NavigationRailDestination(
@@ -174,9 +176,9 @@ class _AppShellState extends State<AppShell> {
                       label: Text('Create Proof'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.history_outlined),
-                      selectedIcon: Icon(Icons.history),
-                      label: Text('My Proofs'),
+                      icon: Icon(Icons.help_outline),
+                      selectedIcon: Icon(Icons.help),
+                      label: Text('Help'),
                     ),
                     NavigationRailDestination(
                       icon: Icon(Icons.settings_outlined),
@@ -344,9 +346,9 @@ class _CreateProofPageState extends State<CreateProofPage>
           children: [
             // Animated Background Icon
             AnimatedOpacity(
-              duration: const Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 1500),
               opacity: _digest != null
-                  ? 0.05
+                  ? 0.25
                   : 0.0, // Fades in when there's a result
               child: ScaleTransition(
                 scale: _breathingAnimation,
