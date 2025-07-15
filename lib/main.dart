@@ -109,39 +109,15 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
-        children: <Widget>[
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (int index) {
-              setState(() {
-                _selectedIndex = index;
-              });
-            },
-            labelType: NavigationRailLabelType.all,
-            leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
-            destinations: const <NavigationRailDestination>[
-              NavigationRailDestination(
-                icon: Icon(Icons.add_box_outlined),
-                selectedIcon: Icon(Icons.add_box),
-                label: Text('Create Proof'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.history_outlined),
-                selectedIcon: Icon(Icons.history),
-                label: Text('My Proofs'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('Settings'),
-              ),
-            ],
-          ),
-          const VerticalDivider(thickness: 1, width: 1),
-          Expanded(
-            child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Use a threshold to decide which navigation to show
+        const double navigationRailThreshold = 600;
+
+        if (constraints.maxWidth < navigationRailThreshold) {
+          // For portrait or narrow screens, use BottomNavigationBar
+          return Scaffold(
+            body: Column(
               children: [
                 Expanded(
                   child: Center(
@@ -151,12 +127,86 @@ class _AppShellState extends State<AppShell> {
                 const Footer(),
               ],
             ),
-          ),
-        ],
-      ),
+            bottomNavigationBar: BottomNavigationBar(
+              items: const <BottomNavigationBarItem>[
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.add_box_outlined),
+                  activeIcon: Icon(Icons.add_box),
+                  label: 'Create Proof',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.history_outlined),
+                  activeIcon: Icon(Icons.history),
+                  label: 'My Proofs',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings_outlined),
+                  activeIcon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
+              currentIndex: _selectedIndex,
+              onTap: (int index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+            ),
+          );
+        } else {
+          // For landscape or wider screens, use NavigationRail
+          return Scaffold(
+            body: Row(
+              children: <Widget>[
+                NavigationRail(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (int index) {
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  labelType: NavigationRailLabelType.all,
+                  leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
+                  destinations: const <NavigationRailDestination>[
+                    NavigationRailDestination(
+                      icon: Icon(Icons.add_box_outlined),
+                      selectedIcon: Icon(Icons.add_box),
+                      label: Text('Create Proof'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.history_outlined),
+                      selectedIcon: Icon(Icons.history),
+                      label: Text('My Proofs'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.settings_outlined),
+                      selectedIcon: Icon(Icons.settings),
+                      label: Text('Settings'),
+                    ),
+                  ],
+                ),
+                const VerticalDivider(thickness: 1, width: 1),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: _widgetOptions.elementAt(_selectedIndex),
+                        ),
+                      ),
+                      const Footer(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      },
     );
   }
 }
+
 
 class CreateProofPage extends StatefulWidget {
   const CreateProofPage({super.key});
@@ -473,7 +523,7 @@ class _CreateProofPageState extends State<CreateProofPage>
             style: TextStyle(
                 fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height:.8),
           CopyableText(
             label:
                 'Your proof is permanently recorded. Here is the Transaction ID:',
