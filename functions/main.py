@@ -39,7 +39,7 @@ def get_unspent_from_mempool(address):
     unspents = []
     for utxo in utxos:
         tx_url = f"https://mempool.space/testnet/api/tx/{utxo['txid']}"
-        tx_r = requests.get(tx_url, timeout=5)
+        tx_r = requests.get(tx_url, timeout=3)
         tx_r.raise_for_status()
         tx_data = tx_r.json()
         scriptpubkey = tx_data['vout'][utxo['vout']]['scriptpubkey']
@@ -135,7 +135,7 @@ def get_fee_from_mempool():
     r = requests.get(url, timeout=5)
     r.raise_for_status()
     fees = r.json()
-    fee = fees.get('hourFee')
+    fee = fees.get('economyFee')
     if fee:
         print(f"Got fee from mempool.space: {fee} sat/vB")
         return fee
@@ -178,7 +178,7 @@ def get_fee_from_blockcypher():
     r.raise_for_status()
     data = r.json()
     # Fee is in satoshis per kilobyte, convert to sat/vB
-    fee_per_kb = data.get('medium_fee_per_kb')
+    fee_per_kb = data.get('low_fee_per_kb')
     if fee_per_kb:
         fee_per_byte = fee_per_kb / 1000
         print(f"Got fee from blockcypher.com: {fee_per_byte} sat/vB")
@@ -209,14 +209,20 @@ def get_fee_with_consensus():
         if len(fees) >= 2:
             # If at least two providers succeeded, return the average fee
             average_fee = int(sum(fees) / len(fees))
+            chosen_fee = average_fee//2
+            if chosen_fee < 1:
+                chosen_fee = 1
             print(f"Successfully fetched fees from multiple providers: {fees}. Using average value: {average_fee} sat/vB")
-            return average_fee
+            return chosen_fee
 
     if len(fees) == 1:
         # If only one provider succeeded, use its fee
         single_fee = int(fees[0])
+        chosen_fee = single_fee // 2
+        if chosen_fee < 1:
+            chosen_fee = 1
         print(f"Only one fee provider succeeded: {single_fee} sat/vB")
-        return single_fee
+        return chosen_fee
     else:
         logging.warning("All fee providers failed. Falling back to default fee.")
         return 1  # Fallback fee, slightly increased for safety
@@ -328,7 +334,7 @@ def transact(private_key_string, file_digest):
     # 1. Load wallet and explicitly check balance before creating transaction
     key = PrivateKeyTestnet(wif=private_key_string)
     print(f"Wallet loaded for address: {key.address}")
-    recommended_fee_sat_per_byte = get_fee_with_consensus() // 5
+    recommended_fee_sat_per_byte = get_fee_with_consensus()
     print(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
     # Manually fetch unspents using our reliable function to bypass 'bit's networking.
     unspents = get_unspents_resiliently(key.address)
