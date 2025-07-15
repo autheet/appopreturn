@@ -4,7 +4,11 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9c8f6deb-df91-4fff-a3b6-580b7721c431" name="Changes" comment="idea folder added" />
+    <list default="true" id="9c8f6deb-df91-4fff-a3b6-580b7721c431" name="Changes" comment="time measurements">
+      <change afterPath="$PROJECT_DIR$/functions/create_wallets.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/functions/experiments2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -26,6 +30,13 @@
       </file>
     </leaf>
   </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
@@ -42,8 +53,8 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/autheet/appopreturn.git&quot;,
-    &quot;accountId&quot;: &quot;3f2f88f2-0cae-41ef-95bb-3a2be041b84e&quot;
+    &quot;url&quot;: &quot;https://github.com/autheet/appopreturn&quot;,
+    &quot;accountId&quot;: &quot;7e3a42bb-60ca-4a9f-8ae8-a0f783d8197a&quot;
   },
   &quot;recentNewPullRequestHead&quot;: {
     &quot;server&quot;: {
@@ -72,23 +83,73 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "dart.analysis.tool.window.visible": "false",
-    "kotlin-language-version-configured": "true",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.0",
-    "project.structure.side.proportion": "0.0",
-    "settings.editor.selected.configurable": "dart.settings",
-    "show.migrate.to.gradle.popup": "false"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.create_wallets.executor&quot;: &quot;Run&quot;,
+    &quot;Python.experiments.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;dart.settings&quot;,
+    &quot;show.migrate.to.gradle.popup&quot;: &quot;false&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
+  <component name="RunManager" selected="Python.create_wallets">
+    <configuration name="experiments" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+      <module name="myapp_android" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="SDK_NAME" value="Python 3.13" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/functions" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/functions/experiments.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Python.experiments" />
+      <item itemvalue="Python.main" />
+      <item itemvalue="Python.create_wallets" />
+    </list>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-09060db00ec0-JavaScript-PY-251.26927.90" />
+        <option value="bundled-python-sdk-41e8cd69c857-64d779b69b7a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.26927.90" />
+      </set>
+    </attachedChunks>
+  </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
       <changelist id="9c8f6deb-df91-4fff-a3b6-580b7721c431" name="Changes" comment="" />
@@ -96,6 +157,8 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1752536044400</updated>
+      <workItem from="1752610698652" duration="10884000" />
+      <workItem from="1752622057940" duration="1058000" />
     </task>
     <task id="LOCAL-00001" summary="capabilities">
       <option name="closed" value="true" />
@@ -129,7 +192,143 @@
       <option name="project" value="LOCAL" />
       <updated>1752588240987</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="if only one utxo works, return">
+      <option name="closed" value="true" />
+      <created>1752609783259</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1752609783259</updated>
+    </task>
+    <task id="LOCAL-00006" summary="if only one utxo works, return">
+      <option name="closed" value="true" />
+      <created>1752609879750</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1752609879750</updated>
+    </task>
+    <task id="LOCAL-00007" summary="if only one utxo works, return">
+      <option name="closed" value="true" />
+      <created>1752610110138</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1752610110138</updated>
+    </task>
+    <task id="LOCAL-00008" summary="if only one utxo works, return">
+      <option name="closed" value="true" />
+      <created>1752611037212</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1752611037212</updated>
+    </task>
+    <task id="LOCAL-00009" summary="fee calculation">
+      <option name="closed" value="true" />
+      <created>1752611248155</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1752611248155</updated>
+    </task>
+    <task id="LOCAL-00010" summary="fee calculation">
+      <option name="closed" value="true" />
+      <created>1752611458133</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1752611458133</updated>
+    </task>
+    <task id="LOCAL-00011" summary="fee calculation">
+      <option name="closed" value="true" />
+      <created>1752611925863</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1752611925863</updated>
+    </task>
+    <task id="LOCAL-00012" summary="broadcast providers">
+      <option name="closed" value="true" />
+      <created>1752612594350</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1752612594350</updated>
+    </task>
+    <task id="LOCAL-00013" summary="resilience improved">
+      <option name="closed" value="true" />
+      <created>1752612859930</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1752612859930</updated>
+    </task>
+    <task id="LOCAL-00014" summary="sochain">
+      <option name="closed" value="true" />
+      <created>1752613950933</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1752613950933</updated>
+    </task>
+    <task id="LOCAL-00015" summary="more providers added">
+      <option name="closed" value="true" />
+      <created>1752614446221</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1752614446221</updated>
+    </task>
+    <task id="LOCAL-00016" summary="parallelism experiment">
+      <option name="closed" value="true" />
+      <created>1752615435603</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1752615435603</updated>
+    </task>
+    <task id="LOCAL-00017" summary="blockcypher token added">
+      <option name="closed" value="true" />
+      <created>1752616435053</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1752616435053</updated>
+    </task>
+    <task id="LOCAL-00018" summary="revert">
+      <option name="closed" value="true" />
+      <created>1752617299288</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1752617299288</updated>
+    </task>
+    <task id="LOCAL-00019" summary="BLOCKCYPHER API TOKEN ADDED">
+      <option name="closed" value="true" />
+      <created>1752617775544</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1752617775544</updated>
+    </task>
+    <task id="LOCAL-00020" summary="BLOCKCYPHER API TOKEN ADDED concurrency">
+      <option name="closed" value="true" />
+      <created>1752617804906</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1752617804906</updated>
+    </task>
+    <task id="LOCAL-00021" summary="time measurements">
+      <option name="closed" value="true" />
+      <created>1752617975541</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1752617975541</updated>
+    </task>
+    <option name="localTasksCounter" value="22" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -138,9 +337,33 @@
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
     </layout>
   </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="capabilities" />
     <MESSAGE value="idea folder added" />
-    <option name="LAST_COMMIT_MESSAGE" value="idea folder added" />
+    <MESSAGE value="if only one utxo works, return" />
+    <MESSAGE value="fee calculation" />
+    <MESSAGE value="broadcast providers" />
+    <MESSAGE value="resilience improved" />
+    <MESSAGE value="sochain" />
+    <MESSAGE value="more providers added" />
+    <MESSAGE value="parallelism experiment" />
+    <MESSAGE value="blockcypher token added" />
+    <MESSAGE value="revert" />
+    <MESSAGE value="BLOCKCYPHER API TOKEN ADDED" />
+    <MESSAGE value="BLOCKCYPHER API TOKEN ADDED concurrency" />
+    <MESSAGE value="time measurements" />
+    <option name="LAST_COMMIT_MESSAGE" value="time measurements" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/appopreturn$experiments5.coverage" NAME="experiments5 Coverage Results" MODIFIED="1752525725874" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/functions" />
+    <SUITE FILE_PATH="coverage/appopreturn$experiments3.coverage" NAME="experiments3 Coverage Results" MODIFIED="1752446904229" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/functions" />
+    <SUITE FILE_PATH="coverage/appopreturn$experiments.coverage" NAME="experiments Coverage Results" MODIFIED="1752621464870" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/functions" />
+    <SUITE FILE_PATH="coverage/appopreturn$main.coverage" NAME="main Coverage Results" MODIFIED="1752621522739" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/functions" />
+    <SUITE FILE_PATH="coverage/appopreturn$create_wallets.coverage" NAME="create_wallets Coverage Results" MODIFIED="1752623081237" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/functions" />
+    <SUITE FILE_PATH="coverage/appopreturn$experiments2.coverage" NAME="experiments2 Coverage Results" MODIFIED="1752446338962" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/functions" />
+    <SUITE FILE_PATH="coverage/appopreturn$experiments4.coverage" NAME="experiments4 Coverage Results" MODIFIED="1752534686118" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/functions" />
   </component>
 </project>
