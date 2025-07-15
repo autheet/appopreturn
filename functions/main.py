@@ -91,10 +91,19 @@ def get_unspent_from_bitaps(address):
 def get_unspent_from_blockcypher(address):
     """Fetches UTXOs from blockcypher.com."""
     print(f"Attempting to fetch UTXOs from blockcypher.com for {address}")
-    url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}?unspentOnly=true"
-    r = requests.get(url, timeout=5)
+    # FIX: Added API token handling
+    token = BLOCKCYPHER_TOKEN.value if "BLOCKCYPHER_TOKEN" in globals() and BLOCKCYPHER_TOKEN.value else os.environ.get(
+        "BLOCKCYPHER_TOKEN")
+    url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}"
+    params = {'unspentOnly': 'true'}
+    if token:
+        params['token'] = token
+
+    r = requests.get(url, params=params, timeout=5)
     r.raise_for_status()
     data = r.json()
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
     utxos = data.get('txrefs', [])
 
     unspents = []
@@ -193,24 +202,26 @@ def get_unspents_resiliently(address):
     for provider_func in providers:
         try:
             unspents = provider_func(address)
-            balance = sum(utxo.amount for utxo in unspents)
+            balance = sum(utxo.amount for utxo in unspents) if unspents else 0
 
-            if balance > 0:
+            if unspents and balance > 0:
                 print(f"Successfully fetched UTXOs using {provider_func.__name__}")
-                if unspents != []:
-                    unspentsdict[provider_func.__name__] = unspents
+                unspentsdict[provider_func.__name__] = unspents
                 if len(unspentsdict) >= 2:
-                    if find_duplicate_value_oneliner(unspentsdict):
-                        print(f"Duplicate UTXOs found in {unspentsdict}")
-                        return find_duplicate_value_oneliner(unspentsdict)
-            if balance == 0:
-                logging.warning(f"Wallet for address {key.address} has no funds following {provider_func.__name__}.")
+                    duplicate = find_duplicate_value_oneliner(unspentsdict)
+                    if duplicate:
+                        print(f"Consensus found for UTXOs. Returning result.")
+                        return duplicate
+            elif unspents is None:
+                logging.warning(f"Provider {provider_func.__name__} returned None.")
+            elif balance == 0:
+                logging.warning(f"Wallet for address {address} has no funds according to {provider_func.__name__}.")
 
 
         except Exception as e:
             print(f"Provider {provider_func.__name__} failed: {e}")
     if len(unspentsdict) >= 1:
-        logging.warning(f"No consensous or only one UTXO provider succeeded.")
+        logging.warning(f"No consensus or only one UTXO provider succeeded.")
         return next(iter(unspentsdict.values()))
     raise Exception("All UTXO API providers failed.")
 
@@ -261,10 +272,19 @@ def get_fee_from_bitaps():
 def get_fee_from_blockcypher():
     """Fetches recommended fee from blockcypher.com."""
     print("Attempting to fetch fee from blockcypher.com")
+    # FIX: Added API token handling
+    token = BLOCKCYPHER_TOKEN.value if "BLOCKCYPHER_TOKEN" in globals() and BLOCKCYPHER_TOKEN.value else os.environ.get(
+        "BLOCKCYPHER_TOKEN")
     url = "https://api.blockcypher.com/v1/btc/test3"
-    r = requests.get(url, timeout=2)
+    params = {}
+    if token:
+        params['token'] = token
+
+    r = requests.get(url, params=params, timeout=2)
     r.raise_for_status()
     data = r.json()
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
     # Fee is in satoshis per kilobyte, convert to sat/vB
     fee_per_kb = data.get('low_fee_per_kb')
     if fee_per_kb:
@@ -282,7 +302,7 @@ def get_fee_from_blockstream():
     r.raise_for_status()
     fees = r.json()
     min_fee = min(fees, key=fees.get)
-    fee_per_byte = fees.get(min_fee) # get the minimum fee
+    fee_per_byte = fees.get(min_fee)  # get the minimum fee
     if fee_per_byte < 10:
         print(f"Got fee from blockstream.info: {fee_per_byte} sat/vB")
         return fee_per_byte
@@ -354,10 +374,11 @@ def get_fee_with_consensus():
         if len(fees) >= 2:
             # If at least two providers succeeded, return the average fee
             average_fee = int(sum(fees) / len(fees))
-            chosen_fee = average_fee//3
+            chosen_fee = average_fee // 3
             if chosen_fee < 1:
                 chosen_fee = 1
-            print(f"Successfully fetched fees from multiple providers: {fees}. Using average value: {average_fee} sat/vB")
+            print(
+                f"Successfully fetched fees from multiple providers: {fees}. Using average value: {average_fee} sat/vB")
             return chosen_fee
 
     if len(fees) == 1:
@@ -371,7 +392,6 @@ def get_fee_with_consensus():
     else:
         logging.error("All fee providers failed. Falling back to default fee.")
         return 1  # Fallback fee
-
 
 
 def broadcast_with_mempool(tx_hex):
@@ -400,11 +420,19 @@ def broadcast_with_blockchair(tx_hex):
 def broadcast_with_blockcypher(tx_hex):
     """Broadcasts transaction using blockcypher.com."""
     print("Broadcasting with blockcypher.com...")
+    # FIX: Added API token handling
+    token = BLOCKCYPHER_TOKEN.value if "BLOCKCYPHER_TOKEN" in globals() and BLOCKCYPHER_TOKEN.value else os.environ.get(
+        "BLOCKCYPHER_TOKEN")
     url = "https://api.blockcypher.com/v1/btc/test3/txs/push"
+    if token:
+        url += f"?token={token}"
+
     response = requests.post(url, json={'tx': tx_hex}, timeout=5)
     response.raise_for_status()
-    data = response.json().get('tx', {})
-    txid = data.get('hash')
+    data = response.json()
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
+    txid = data.get('tx', {}).get('hash')
     if txid:
         return txid
     raise Exception(f"Blockcypher broadcast failed. Response: {data}")
@@ -478,7 +506,7 @@ def broadcast_resiliently(tx_hex):
             try:
                 txid = provider_func(tx_hex)
                 print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
-                txids[f"{provider_func.__name__}"]=txid
+                txids[f"{provider_func.__name__}"] = txid
                 if len(txids) >= 2:
                     print(f"broadcasted with {txids}")
                     return txid
@@ -513,7 +541,9 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app()
 
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
-
+## FIX: Define the new secret for the Blockcypher API Token.
+# BLOCKCYPHER_TOKEN = SecretParam("BLOCKCYPHER_TOKEN")
+os.environ.get("BLOCKCYPHER_TOKEN")
 
 def transact(private_key_string, file_digest):
     # 1. Load wallet and explicitly check balance before creating transaction
@@ -538,12 +568,14 @@ def transact(private_key_string, file_digest):
     return {"tx_hash": tx_hash, 'network': 'testnet3'}
 
 
+# FIX: Added BLOCKCYPHER_TOKEN to the list of secrets.
 @https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=120)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
     Creates transactions with 'bit' (patched) and broadcasts with 'bitcoinlib'.
     """
+    os.environ.get("BLOCKCYPHER_TOKEN")
     total_start_time = time.time()
     try:
         file_digest = req.data.get("digest")
@@ -604,13 +636,15 @@ def main():
     dotenv_path = join(dirname(__file__), '.env')
     load_dotenv(dotenv_path)
     private_key_string = os.environ.get("LOCAL_WALLET_PRIVATE_KEY")
+    # FIX: Ensure BLOCKCYPHER_TOKEN is loaded from .env for local testing
+    os.environ.get("BLOCKCYPHER_TOKEN")
     file_digest = f"https://appopreturn.autheet.com"
 
     if not private_key_string:
         print("Error: LOCAL_WALLET_PRIVATE_KEY not found in .env file.")
         return
 
-    print("--- Strategy: Create (bit) -> Broadcast (bitcoinlib with MempoolClient) ---")
+    print("--- Strategy: Create (bit) -> Broadcast (resiliently) ---")
 
     try:
 
