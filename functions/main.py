@@ -12,6 +12,7 @@ import requests
 import random
 import statistics
 import decimal
+import concurrent.futures
 
 # Import the library and the specific module we need to patch
 from bit import PrivateKeyTestnet, crypto
@@ -26,6 +27,8 @@ from bitcoinlib.services.mempool import MempoolClient
 
 def get_unspent_from_mempool(address):
     """Fetches UTXOs from mempool.space."""
+    # This function and other provider-specific functions remain the same.
+    # They are the individual tasks that will be run in parallel.
     print(f"Attempting to fetch UTXOs from mempool.space for {address}")
     tip_height_url = "https://mempool.space/testnet/api/blocks/tip/height"
     tip_height_r = requests.get(tip_height_url, timeout=5)
@@ -82,7 +85,6 @@ def get_unspent_from_bitaps(address):
 
     unspents = []
     for utxo in utxos:
-        # Bitaps provides confirmations directly
         unspents.append(Unspent(utxo['value'], utxo['confirmations'], utxo['scriptPubKey'], utxo['txId'], utxo['vOut']))
     print(f"Successfully fetched {len(unspents)} UTXOs from bitaps.com")
     return unspents
@@ -91,15 +93,24 @@ def get_unspent_from_bitaps(address):
 def get_unspent_from_blockcypher(address):
     """Fetches UTXOs from blockcypher.com."""
     print(f"Attempting to fetch UTXOs from blockcypher.com for {address}")
-    url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}?unspentOnly=true"
-    r = requests.get(url, timeout=5)
+    # FIX: Added robust API token handling from environment secrets.
+    # This resolves the likely cause of the NameError and makes the function more reliable.
+    token = os.environ.get("BLOCKCYPHER_TOKEN")
+    url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}"
+    params = {'unspentOnly': 'true'}
+    if token:
+        params['token'] = token
+
+    r = requests.get(url, params=params, timeout=5)
     r.raise_for_status()
     data = r.json()
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
+
     utxos = data.get('txrefs', [])
 
     unspents = []
     for utxo in utxos:
-        # Blockcypher provides confirmations directly
         unspents.append(
             Unspent(utxo['value'], utxo['confirmations'], utxo['script'], utxo['tx_hash'], utxo['tx_output_n']))
     print(f"Successfully fetched {len(unspents)} UTXOs from blockcypher.com")
@@ -132,8 +143,7 @@ def get_unspent_from_blockstream(address):
 
         unspents.append(Unspent(utxo['value'], confirmations, scriptpubkey, utxo['txid'], utxo['vout']))
     print(f"Successfully fetched {len(unspents)} UTXOs from blockstream.info")
-    if unspents != []:
-        return unspents
+    return unspents
 
 
 def get_unspent_from_sochain(address):
@@ -147,7 +157,6 @@ def get_unspent_from_sochain(address):
 
     unspents = []
     for utxo in utxos:
-        # SoChain returns value in BTC, convert to satoshis
         amount_satoshi = int(decimal.Decimal(utxo['value']) * 100_000_000)
         unspents.append(
             Unspent(amount_satoshi, utxo['confirmations'], utxo['script_hex'], utxo['txid'], utxo['output_no']))
@@ -172,46 +181,48 @@ def get_unspent_from_insight(address):
 
 
 def get_unspents_resiliently(address):
-    """Tries a list of API providers to fetch UTXOs until one succeeds."""
+    """Tries a list of API providers in parallel to fetch UTXOs and returns the first consensus."""
     providers = [
-        get_unspent_from_mempool,
-        get_unspent_from_blockchair,
-        get_unspent_from_bitaps,
-        get_unspent_from_blockcypher,
-        get_unspent_from_blockstream,
-        get_unspent_from_sochain,
+        get_unspent_from_mempool, get_unspent_from_blockchair, get_unspent_from_bitaps,
+        get_unspent_from_blockcypher, get_unspent_from_blockstream, get_unspent_from_sochain,
         get_unspent_from_insight
     ]
     random.shuffle(providers)
-    unspentsdict = {}
+    unspents_results = {}
 
-    def find_duplicate_value_oneliner(data_dict):
-        """Finds the first duplicate value in a dictionary in one line."""
-        values = list(data_dict.values())
-        return next((v for i, v in enumerate(values) if v in values[:i]), None)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as executor:
+        future_to_provider = {executor.submit(provider, address): provider for provider in providers}
 
-    for provider_func in providers:
-        try:
-            unspents = provider_func(address)
-            balance = sum(utxo.amount for utxo in unspents)
+        for future in concurrent.futures.as_completed(future_to_provider):
+            provider_func = future_to_provider[future]
+            try:
+                unspents = future.result()
+                if unspents is not None and sum(utxo.amount for utxo in unspents) > 0:
+                    print(f"Successfully got result from {provider_func.__name__}")
+                    # Use a hashable representation of the unspents for comparison
+                    unspents_tuple = tuple(sorted(unspents, key=lambda u: (u.txid, u.vout)))
+                    unspents_results[provider_func.__name__] = (unspents, unspents_tuple)
 
-            if balance > 0:
-                print(f"Successfully fetched UTXOs using {provider_func.__name__}")
-                if unspents != []:
-                    unspentsdict[provider_func.__name__] = unspents
-                if len(unspentsdict) >= 2:
-                    if find_duplicate_value_oneliner(unspentsdict):
-                        print(f"Duplicate UTXOs found in {unspentsdict}")
-                        return find_duplicate_value_oneliner(unspentsdict)
-            if balance == 0:
-                logging.warning(f"Wallet for address {key.address} has no funds following {provider_func.__name__}.")
+                    # Check for consensus
+                    counts = {}
+                    for _, u_tuple in unspents_results.values():
+                        counts[u_tuple] = counts.get(u_tuple, 0) + 1
 
+                    for u_tuple, count in counts.items():
+                        if count >= 2:
+                            print(f"Consensus found with {count} providers. Returning result.")
+                            # Find the original list of Unspent objects
+                            for original_unspents, tuple_rep in unspents_results.values():
+                                if tuple_rep == u_tuple:
+                                    return original_unspents
+            except Exception as e:
+                logging.warning(f"Provider {provider_func.__name__} failed: {e}")
 
-        except Exception as e:
-            print(f"Provider {provider_func.__name__} failed: {e}")
-    if len(unspentsdict) >= 1:
-        logging.warning(f"No consensous or only one UTXO provider succeeded.")
-        return next(iter(unspentsdict.values()))
+    # If no consensus was reached with 2 providers, return the first valid result we got
+    if unspents_results:
+        logging.warning("No consensus found. Returning first successful result.")
+        return next(iter(unspents_results.values()))[0]
+
     raise Exception("All UTXO API providers failed.")
 
 
@@ -226,7 +237,7 @@ def get_fee_from_mempool():
     if fee:
         print(f"Got fee from mempool.space: {fee} sat/vB")
         return fee
-    raise ValueError("Mempool.space fee API did not return 'hourFee'.")
+    raise ValueError("Mempool.space fee API did not return 'economyFee'.")
 
 
 def get_fee_from_blockchair():
@@ -250,7 +261,6 @@ def get_fee_from_bitaps():
     r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
-    # Using low fee for minimum
     fee_per_byte = data.get('lowFee', {}).get('feeRate')
     if fee_per_byte:
         print(f"Got fee from bitaps.com: {fee_per_byte} sat/vB")
@@ -261,11 +271,19 @@ def get_fee_from_bitaps():
 def get_fee_from_blockcypher():
     """Fetches recommended fee from blockcypher.com."""
     print("Attempting to fetch fee from blockcypher.com")
+    # FIX: Added robust API token handling.
+    token = os.environ.get("BLOCKCYPHER_TOKEN")
     url = "https://api.blockcypher.com/v1/btc/test3"
-    r = requests.get(url, timeout=2)
+    params = {}
+    if token:
+        params['token'] = token
+
+    r = requests.get(url, params=params, timeout=2)
     r.raise_for_status()
     data = r.json()
-    # Fee is in satoshis per kilobyte, convert to sat/vB
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
+
     fee_per_kb = data.get('low_fee_per_kb')
     if fee_per_kb:
         fee_per_byte = fee_per_kb / 1000
@@ -281,25 +299,23 @@ def get_fee_from_blockstream():
     r = requests.get(url, timeout=2)
     r.raise_for_status()
     fees = r.json()
-    min_fee = min(fees, key=fees.get)
-    fee_per_byte = fees.get(min_fee) # get the minimum fee
-    if fee_per_byte < 10:
+    min_fee_key = min(fees, key=fees.get)
+    fee_per_byte = fees.get(min_fee_key)
+    if fee_per_byte and fee_per_byte < 10:
         print(f"Got fee from blockstream.info: {fee_per_byte} sat/vB")
         return fee_per_byte
-    raise ValueError("Blockstream fee API did not return a minimum fee.")
+    raise ValueError("Blockstream fee API did not return a valid minimum fee.")
 
 
 def get_fee_from_sochain():
     """Fetches recommended fee from sochain.com."""
     print("Attempting to fetch fee from sochain.com")
-    # Using a 6 block confirmation target
     url = "https://sochain.com/api/v2/get_fee_estimate/BTCTEST/6"
     r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
     fee_per_byte = data.get('estimated_fee_per_byte')
     if fee_per_byte:
-        # SoChain returns fee as a string, convert to float
         fee = float(fee_per_byte)
         print(f"Got fee from sochain.com: {fee} sat/vB")
         return fee
@@ -309,17 +325,12 @@ def get_fee_from_sochain():
 def get_fee_from_insight():
     """Fetches recommended fee from test-insight.bitpay.com."""
     print("Attempting to fetch fee from test-insight.bitpay.com")
-    # 6 block target for an economy fee
     url = "https://test-insight.bitpay.com/api/utils/estimatefee?nbBlocks=6"
     r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json()
-    # API returns fee in BTC/kB. We need sat/vB.
     fee_btc_per_kb = next(iter(data.values()), None)
     if fee_btc_per_kb and fee_btc_per_kb > 0:
-        # Convert BTC/kB to sat/vB
-        # 1 BTC = 10^8 satoshis. 1 kB = 1000 bytes.
-        # (fee_btc_per_kb * 10^8) / 1000 = fee_sat_per_byte
         fee_per_byte = (fee_btc_per_kb * 100_000_000) / 1000
         print(f"Got fee from test-insight.bitpay.com: {fee_per_byte} sat/vB")
         return fee_per_byte
@@ -327,51 +338,41 @@ def get_fee_from_insight():
 
 
 def get_fee_with_consensus():
-    """
-    Tries multiple API providers to fetch recommended fees and uses the median.
-    """
+    """Tries multiple API providers in parallel to fetch recommended fees and uses an average."""
     providers = [
-        get_fee_from_mempool,
-        get_fee_from_blockchair,
-        get_fee_from_bitaps,
-        get_fee_from_blockcypher,
-        get_fee_from_blockstream,
-        get_fee_from_sochain,
+        get_fee_from_mempool, get_fee_from_blockchair, get_fee_from_bitaps,
+        get_fee_from_blockcypher, get_fee_from_blockstream, get_fee_from_sochain,
         get_fee_from_insight
     ]
-    random.shuffle(providers)  # Shuffle the providers for better distribution
     fees = []
-    for provider_func in providers:
-        try:
-            fee_provider = provider_func()
-            if fee_provider >= 20:
-                fee_provider = 20
-                print(f"Fee provider {provider_func.__name__} returned a too high fee. Using 20 sat/vB")
-            fees.append(fee_provider)
-        except Exception as e:
-            logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as executor:
+        future_to_provider = {executor.submit(provider): provider for provider in providers}
+        for future in concurrent.futures.as_completed(future_to_provider):
+            provider_func = future_to_provider[future]
+            try:
+                fee = future.result()
+                if fee >= 20:
+                    fee = 20
+                    print(f"Fee provider {provider_func.__name__} returned a too high fee. Using 20 sat/vB")
+                fees.append(fee)
+            except Exception as e:
+                logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
 
-        if len(fees) >= 2:
-            # If at least two providers succeeded, return the average fee
-            average_fee = int(sum(fees) / len(fees))
-            chosen_fee = average_fee//3
-            if chosen_fee < 1:
-                chosen_fee = 1
-            print(f"Successfully fetched fees from multiple providers: {fees}. Using average value: {average_fee} sat/vB")
-            return chosen_fee
+    if not fees:
+        logging.error("All fee providers failed. Falling back to default fee.")
+        return 1
 
     if len(fees) == 1:
-        # If only one provider succeeded, use its fee
         single_fee = int(fees[0])
-        chosen_fee = single_fee // 3
-        if chosen_fee < 1:
-            chosen_fee = 1
-        print(f"Only one fee provider succeeded: {single_fee} sat/vB")
+        chosen_fee = single_fee // 3 if single_fee // 3 >= 1 else 1
+        print(f"Only one fee provider succeeded: {single_fee} sat/vB. Using {chosen_fee} sat/vB.")
         return chosen_fee
-    else:
-        logging.error("All fee providers failed. Falling back to default fee.")
-        return 1  # Fallback fee
 
+    average_fee = int(sum(fees) / len(fees))
+    chosen_fee = average_fee // 3 if average_fee // 3 >= 1 else 1
+    print(
+        f"Successfully fetched fees from {len(fees)} providers: {fees}. Using average value: {average_fee}, chosen: {chosen_fee} sat/vB")
+    return chosen_fee
 
 
 def broadcast_with_mempool(tx_hex):
@@ -400,11 +401,18 @@ def broadcast_with_blockchair(tx_hex):
 def broadcast_with_blockcypher(tx_hex):
     """Broadcasts transaction using blockcypher.com."""
     print("Broadcasting with blockcypher.com...")
+    # FIX: Added robust API token handling.
+    token = os.environ.get("BLOCKCYPHER_TOKEN")
     url = "https://api.blockcypher.com/v1/btc/test3/txs/push"
+    if token:
+        url += f"?token={token}"
+
     response = requests.post(url, json={'tx': tx_hex}, timeout=5)
     response.raise_for_status()
-    data = response.json().get('tx', {})
-    txid = data.get('hash')
+    data = response.json()
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
+    txid = data.get('tx', {}).get('hash')
     if txid:
         return txid
     raise Exception(f"Blockcypher broadcast failed. Response: {data}")
@@ -429,7 +437,7 @@ def broadcast_with_blockstream(tx_hex):
     response = requests.post(url, data=tx_hex, timeout=5)
     response.raise_for_status()
     txid = response.text
-    if len(txid) == 64:  # A valid TXID is 64 hex characters
+    if len(txid) == 64:
         return txid
     raise Exception(f"Blockstream broadcast failed. Response: {txid}")
 
@@ -461,34 +469,30 @@ def broadcast_with_insight(tx_hex):
 
 
 def broadcast_resiliently(tx_hex):
-    """Tries a list of API providers to broadcast a transaction until one succeeds."""
+    """Tries a list of API providers in parallel to broadcast a transaction and returns on first success."""
     providers = [
-        broadcast_with_mempool,
-        broadcast_with_blockchair,
-        broadcast_with_blockcypher,
-        broadcast_with_bitaps,
-        broadcast_with_blockstream,
-        broadcast_with_sochain,
+        broadcast_with_mempool, broadcast_with_blockchair, broadcast_with_blockcypher,
+        broadcast_with_bitaps, broadcast_with_blockstream, broadcast_with_sochain,
         broadcast_with_insight
     ]
     random.shuffle(providers)
-    txids = {}
-    for retry_count in range(3):
-        for provider_func in providers:
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as executor:
+        future_to_provider = {executor.submit(provider, tx_hex): provider for provider in providers}
+        for future in concurrent.futures.as_completed(future_to_provider):
+            provider_func = future_to_provider[future]
             try:
-                txid = provider_func(tx_hex)
-                print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
-                txids[f"{provider_func.__name__}"]=txid
-                if len(txids) >= 2:
-                    print(f"broadcasted with {txids}")
+                txid = future.result()
+                if txid:
+                    print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
+                    # Cancel remaining futures
+                    for f in future_to_provider:
+                        f.cancel()
                     return txid
             except Exception as e:
                 logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
-        if len(txids) >= 1:
-            logging.warning(f"only one broadcast provider succeeded: {txids}")
-            return next(iter(txids.values()))
-    else:
-        raise Exception("All broadcast API providers failed.")
+
+    raise Exception("All broadcast API providers failed.")
 
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
@@ -513,32 +517,42 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app()
 
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
+# FIX: Define the new secret for the Blockcypher API Token.
+# Make sure to add this secret to your function's configuration.
+BLOCKCYPHER_TOKEN = SecretParam("BLOCKCYPHER_TOKEN")
 
 
 def transact(private_key_string, file_digest):
-    # 1. Load wallet and explicitly check balance before creating transaction
+    # 1. Load wallet
     key = PrivateKeyTestnet(wif=private_key_string)
     print(f"Wallet loaded for address: {key.address}")
 
-    recommended_fee_sat_per_byte = get_fee_with_consensus()
-    print(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
-    # Manually fetch unspents using our reliable function to bypass 'bit's networking.
-    unspents = get_unspents_resiliently(key.address)
+    # 2. Fetch fees and unspents in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        fee_future = executor.submit(get_fee_with_consensus)
+        unspents_future = executor.submit(get_unspents_resiliently, key.address)
 
+        recommended_fee_sat_per_byte = fee_future.result()
+        print(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
+
+        unspents = unspents_future.result()
+
+    # 3. Create transaction
     raw_tx_hex = key.create_transaction(
         outputs=[],
         message=file_digest,
-        unspents=unspents,  # Provide the fetched UTXOs directly
-        fee=recommended_fee_sat_per_byte  # Set the fee rate
+        unspents=unspents,
+        fee=recommended_fee_sat_per_byte
     )
     print("Raw transaction hex created.")
 
-    # 3. Broadcast transaction resiliently
+    # 4. Broadcast transaction resiliently
     tx_hash = broadcast_resiliently(raw_tx_hex)
     return {"tx_hash": tx_hash, 'network': 'testnet3'}
 
 
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=120)
+# FIX: Added BLOCKCYPHER_TOKEN to the list of secrets.
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY, BLOCKCYPHER_TOKEN], enforce_app_check=True, memory=1024, timeout_sec=120)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
@@ -571,12 +585,10 @@ def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
         else:
             private_key_string = WALLET_PRIVATE_KEY.value
 
-            # --- Strategy: Create with 'bit', broadcast with 'bitcoinlib' ---
             print(f"Creating transaction for digest: {file_digest}")
             tx = transact(private_key_string, file_digest)
             tx_hash = tx['tx_hash']
 
-            # 4. Store the new transaction data in Firestore
             firestore_write_start = time.time()
             doc_ref.set({
                 'server_timestamp': firestore.SERVER_TIMESTAMP,
@@ -604,22 +616,22 @@ def main():
     dotenv_path = join(dirname(__file__), '.env')
     load_dotenv(dotenv_path)
     private_key_string = os.environ.get("LOCAL_WALLET_PRIVATE_KEY")
-    file_digest = f"https://appopreturn.autheet.com"
+    # For local testing, ensure BLOCKCYPHER_TOKEN is in your .env file
+    os.environ.get("BLOCKCYPHER_TOKEN")
+
+    file_digest = f"test-digest-{random.randint(1000, 9999)}"
 
     if not private_key_string:
         print("Error: LOCAL_WALLET_PRIVATE_KEY not found in .env file.")
         return
 
-    print("--- Strategy: Create (bit) -> Broadcast (bitcoinlib with MempoolClient) ---")
+    print("--- Strategy: Create (bit) -> Broadcast (resiliently) ---")
 
     try:
-
         tx = transact(private_key_string, file_digest)
-        print("\nBroadcasting transaction resiliently...")
         tx_hash = tx['tx_hash']
-        print(f"  - Success! TXID: {tx_hash}")
+        print(f"\n  - Success! TXID: {tx_hash}")
         print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
-
 
     except Exception as e:
         print(f"\nAn unexpected error occurred during transaction creation: {e}")

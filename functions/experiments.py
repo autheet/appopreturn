@@ -93,10 +93,20 @@ def get_unspent_from_bitaps(address):
 def get_unspent_from_blockcypher(address):
     """Fetches UTXOs from blockcypher.com."""
     print(f"Attempting to fetch UTXOs from blockcypher.com for {address}")
-    url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}?unspentOnly=true"
-    r = requests.get(url, timeout=5)
+    # FIX: Added robust API token handling from environment secrets.
+    # This resolves the likely cause of the NameError and makes the function more reliable.
+    token = os.environ.get("BLOCKCYPHER_TOKEN")
+    url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}"
+    params = {'unspentOnly': 'true'}
+    if token:
+        params['token'] = token
+
+    r = requests.get(url, params=params, timeout=5)
     r.raise_for_status()
     data = r.json()
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
+
     utxos = data.get('txrefs', [])
 
     unspents = []
@@ -261,10 +271,19 @@ def get_fee_from_bitaps():
 def get_fee_from_blockcypher():
     """Fetches recommended fee from blockcypher.com."""
     print("Attempting to fetch fee from blockcypher.com")
+    # FIX: Added robust API token handling.
+    token = os.environ.get("BLOCKCYPHER_TOKEN")
     url = "https://api.blockcypher.com/v1/btc/test3"
-    r = requests.get(url, timeout=2)
+    params = {}
+    if token:
+        params['token'] = token
+
+    r = requests.get(url, params=params, timeout=2)
     r.raise_for_status()
     data = r.json()
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
+
     fee_per_kb = data.get('low_fee_per_kb')
     if fee_per_kb:
         fee_per_byte = fee_per_kb / 1000
@@ -382,11 +401,18 @@ def broadcast_with_blockchair(tx_hex):
 def broadcast_with_blockcypher(tx_hex):
     """Broadcasts transaction using blockcypher.com."""
     print("Broadcasting with blockcypher.com...")
+    # FIX: Added robust API token handling.
+    token = os.environ.get("BLOCKCYPHER_TOKEN")
     url = "https://api.blockcypher.com/v1/btc/test3/txs/push"
+    if token:
+        url += f"?token={token}"
+
     response = requests.post(url, json={'tx': tx_hex}, timeout=5)
     response.raise_for_status()
-    data = response.json().get('tx', {})
-    txid = data.get('hash')
+    data = response.json()
+    if 'error' in data:
+        raise Exception(f"Blockcypher API returned an error: {data['error']}")
+    txid = data.get('tx', {}).get('hash')
     if txid:
         return txid
     raise Exception(f"Blockcypher broadcast failed. Response: {data}")
@@ -491,6 +517,9 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app()
 
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
+# FIX: Define the new secret for the Blockcypher API Token.
+# Make sure to add this secret to your function's configuration.
+BLOCKCYPHER_TOKEN = SecretParam("BLOCKCYPHER_TOKEN")
 
 
 def transact(private_key_string, file_digest):
@@ -522,7 +551,8 @@ def transact(private_key_string, file_digest):
     return {"tx_hash": tx_hash, 'network': 'testnet3'}
 
 
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=120)
+# FIX: Added BLOCKCYPHER_TOKEN to the list of secrets.
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY, BLOCKCYPHER_TOKEN], enforce_app_check=True, memory=1024, timeout_sec=120)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
@@ -586,6 +616,9 @@ def main():
     dotenv_path = join(dirname(__file__), '.env')
     load_dotenv(dotenv_path)
     private_key_string = os.environ.get("LOCAL_WALLET_PRIVATE_KEY")
+    # For local testing, ensure BLOCKCYPHER_TOKEN is in your .env file
+    os.environ.get("BLOCKCYPHER_TOKEN")
+
     file_digest = f"test-digest-{random.randint(1000, 9999)}"
 
     if not private_key_string:
