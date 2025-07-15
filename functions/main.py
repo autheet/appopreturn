@@ -10,7 +10,8 @@ from firebase_functions.params import SecretParam
 from os.path import join, dirname
 import requests
 import random
-import statistics  # Added for median calculation in fees
+import statistics
+import decimal
 
 # Import the library and the specific module we need to patch
 from bit import PrivateKeyTestnet, crypto
@@ -105,19 +106,6 @@ def get_unspent_from_blockcypher(address):
     return unspents
 
 
-def get_unspent_from_sochain(address):
-    """Fetches UTXOs from sochain.com."""
-    logging.info(f"Attempting to fetch UTXOs from sochain.com for {address}")
-    url = f"https://sochain.com/api/v2/get_tx_unspent/BTCTEST/{address}"
-    r = requests.get(url, timeout=10)
-    r.raise_for_status()
-    data = r.json().get('data', {})
-    utxos = data.get('txs', [])
-    # SoChain value is in BTC, convert to satoshis
-    unspents = [Unspent(int(decimal.Decimal(u['value']) * 100_000_000), u['confirmations'], u['script_hex'], u['txid'],
-                        u['output_no']) for u in utxos]
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from sochain.com")
-    return unspents
 
 
 
@@ -158,8 +146,7 @@ def get_unspents_resiliently(address):
         get_unspent_from_blockchair,
         get_unspent_from_bitaps,
         get_unspent_from_blockcypher,
-        get_unspent_from_blockstream,  # New provider added
-        get_unspent_from_sochain
+        get_unspent_from_blockstream
     ]
     random.shuffle(providers)
     unspentsdict = {}
@@ -274,7 +261,7 @@ def get_fee_with_consensus():
         get_fee_from_blockchair,
         get_fee_from_bitaps,
         get_fee_from_blockcypher,
-        get_fee_from_blockstream  # New provider added
+        get_fee_from_blockstream,
     ]
     random.shuffle(providers)  # Shuffle the providers for better distribution
     fees = []
@@ -384,7 +371,7 @@ def broadcast_resiliently(tx_hex):
         broadcast_with_blockchair,
         broadcast_with_blockcypher,
         broadcast_with_bitaps,
-        broadcast_with_blockstream
+        broadcast_with_blockstream,
     ]
     random.shuffle(providers)
     txids = {}
