@@ -142,11 +142,6 @@ class _AppShellState extends State<AppShell> {
                   label: 'Help',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.history_outlined),
-                  activeIcon: Icon(Icons.history),
-                  label: 'My Proofs',
-                ),
-                BottomNavigationBarItem(
                   icon: Icon(Icons.settings_outlined),
                   activeIcon: Icon(Icons.settings),
                   label: 'Settings',
