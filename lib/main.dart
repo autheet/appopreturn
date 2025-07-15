@@ -36,7 +36,7 @@ void main() async {
     await FirebaseAppCheck.instance.activate(
       androidProvider: AndroidProvider.debug,
       appleProvider: AppleProvider.debug,
-      webProvider: ReCaptchaV3Provider('6Lc61oArAAAAALykUAJkM-XD-vu8nwSPscHit4e2'),
+      webProvider: ReCaptchaV3Provider(reCaptchaEnterpriseSiteKey),
     );
     FirebaseAppCheck.instance.onTokenChange.listen((token) {
       if (token != null) {
