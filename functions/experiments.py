@@ -13,7 +13,7 @@ import random
 import statistics
 import decimal
 import concurrent.futures
-
+import datetime
 # Import the library and the specific module we need to patch
 from bit import PrivateKeyTestnet, crypto
 from bit.network.meta import Unspent
@@ -619,6 +619,7 @@ def main():
     """
     Local testing function to demonstrate the two-library strategy.
     """
+    time = datetime.datetime.now()
     dotenv_path = join(dirname(__file__), '.env')
     load_dotenv(dotenv_path)
     private_key_string = os.environ.get("LOCAL_WALLET_PRIVATE_KEY")
@@ -638,7 +639,8 @@ def main():
         tx_hash = tx['tx_hash']
         print(f"\n  - Success! TXID: {tx_hash}")
         print(f"  - View on block explorer: https://mempool.space/testnet/tx/{tx_hash}")
-
+        time_taken = time.timestamp() - datetime.datetime.now().timestamp()
+        print(f"  - Time taken: {time_taken:.2f} seconds")
     except Exception as e:
         print(f"\nAn unexpected error occurred during transaction creation: {e}")
         traceback.print_exc()
