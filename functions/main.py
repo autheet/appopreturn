@@ -296,12 +296,6 @@ def get_fee_with_consensus():
         logging.error("All fee providers failed. Falling back to default fee.")
         return 1  # Fallback fee
 
-    # Using the median fee is more robust against outliers than the average.
-    chosen_fee = int(statistics.median(fees))
-    print(f"Successfully fetched fees: {fees}. Using median value: {chosen_fee} sat/vB")
-
-    # Ensure fee is at least 1 sat/vB
-    return max(1, chosen_fee)
 
 
 def broadcast_with_mempool(tx_hex):
@@ -380,9 +374,8 @@ def broadcast_resiliently(tx_hex):
             txid = provider_func(tx_hex)
             print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
             txids[f"{provider_func.__name__}"]=txid
-            print(txids)
             if len(txids) >= 2:
-                print(txids)
+                print(f"broadcasted with {txids}")
                 return txid
         except Exception as e:
             logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
