@@ -512,6 +512,12 @@ crypto.new = _patched_bit_crypto_new
 # Load environment variables from .env file for local testing
 load_dotenv()
 
+dotenv_path = join(dirname(__file__), '.env')
+load_dotenv(dotenv_path)
+private_key_string = os.environ.get("LOCAL_WALLET_PRIVATE_KEY")
+# For local testing, ensure BLOCKCYPHER_TOKEN is in your .env file
+os.environ.get("BLOCKCYPHER_TOKEN")
+
 # Initialize Firebase Admin SDK
 if not firebase_admin._apps:
     firebase_admin.initialize_app()
@@ -519,7 +525,7 @@ if not firebase_admin._apps:
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
 # FIX: Define the new secret for the Blockcypher API Token.
 # Make sure to add this secret to your function's configuration.
-BLOCKCYPHER_TOKEN = SecretParam("BLOCKCYPHER_TOKEN")
+# BLOCKCYPHER_TOKEN = SecretParam("BLOCKCYPHER_TOKEN")
 
 
 def transact(private_key_string, file_digest):
@@ -551,8 +557,8 @@ def transact(private_key_string, file_digest):
     return {"tx_hash": tx_hash, 'network': 'testnet3'}
 
 
-# FIX: Added BLOCKCYPHER_TOKEN to the list of secrets.
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY, BLOCKCYPHER_TOKEN], enforce_app_check=True, memory=1024, timeout_sec=120)
+# TODO: Add BLOCKCYPHER_TOKEN to the list of secrets.
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=120)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
