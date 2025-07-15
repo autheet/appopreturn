@@ -281,7 +281,7 @@ def get_fee_with_consensus():
         if len(fees) >= 2:
             # If at least two providers succeeded, return the average fee
             average_fee = int(sum(fees) / len(fees))
-            chosen_fee = average_fee//2
+            chosen_fee = average_fee//3
             if chosen_fee < 1:
                 chosen_fee = 1
             print(f"Successfully fetched fees from multiple providers: {fees}. Using average value: {average_fee} sat/vB")
@@ -290,7 +290,7 @@ def get_fee_with_consensus():
     if len(fees) == 1:
         # If only one provider succeeded, use its fee
         single_fee = int(fees[0])
-        chosen_fee = single_fee // 2
+        chosen_fee = single_fee // 3
         if chosen_fee < 1:
             chosen_fee = 1
         print(f"Only one fee provider succeeded: {single_fee} sat/vB")
