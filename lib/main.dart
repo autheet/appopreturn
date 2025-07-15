@@ -34,15 +34,14 @@ void main() async {
 
   // Use the debug provider in debug mode, and the production providers in release mode.
   if (kDebugMode) {
-    // In debug mode, we can use a hardcoded reCAPTCHA v3 key for easier testing.
     await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.playIntegrity,
-      appleProvider: AppleProvider.appAttest,
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.debug,
       webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
     );
     FirebaseAppCheck.instance.onTokenChange.listen((token) {
       if (token != null) {
-        print('App Check debug token: $token');
+        debugPrint('App Check debug token: $token');
       }
     });
   } else {
