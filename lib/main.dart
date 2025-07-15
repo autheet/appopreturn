@@ -332,7 +332,7 @@ class _CreateProofPageState extends State<CreateProofPage>
             Text(
               'Creating your transaction. This may take up to two minutes.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
