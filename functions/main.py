@@ -33,7 +33,7 @@ def get_unspent_from_mempool(address):
 
     url = f"https://mempool.space/testnet/api/address/{address}/utxo"
     r = requests.get(url, timeout=5)
-    if r.status_code == 404: return []
+    if r.status_code == 404: raise Exception(f"Address {address} utxo not found in mempool.space")
     r.raise_for_status()
     utxos = r.json()
 
@@ -179,7 +179,7 @@ def get_fee_from_blockchair():
     """Fetches recommended fee from blockchair.com."""
     print("Attempting to fetch fee from blockchair.com")
     url = "https://api.blockchair.com/bitcoin/testnet/stats"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
     fee_per_byte = data.get('suggested_transaction_fee_per_byte_sat')
@@ -193,7 +193,7 @@ def get_fee_from_bitaps():
     """Fetches recommended fee from bitaps.com."""
     print("Attempting to fetch fee from bitaps.com")
     url = "https://api.bitaps.com/btc/testnet/v1/mempool/transactions"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json()
     # Using medium fee for a balance
@@ -208,7 +208,7 @@ def get_fee_from_blockcypher():
     """Fetches recommended fee from blockcypher.com."""
     print("Attempting to fetch fee from blockcypher.com")
     url = "https://api.blockcypher.com/v1/btc/test3"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json()
     # Fee is in satoshis per kilobyte, convert to sat/vB
@@ -224,10 +224,9 @@ def get_fee_from_blockstream():
     """Fetches recommended fee from blockstream.info."""
     print("Attempting to fetch fee from blockstream.info")
     url = "https://blockstream.info/testnet/api/fee-estimates"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     fees = r.json()
-    # Using fee for 6 blocks (~1 hour) as a medium priority fee
     min_fee = min(fees, key=fees.get)
     fee_per_byte = fees.get(min_fee)
     if fee_per_byte:
@@ -251,7 +250,11 @@ def get_fee_with_consensus():
     fees = []
     for provider_func in providers:
         try:
-            fees.append(provider_func())
+            fee_provider = provider_func()
+            if fee_provider >= 20:
+                fee_provider = 20
+                print(f"Fee provider {provider_func.__name__} returned a too high fee. Using 20 sat/vB")
+            fees.append(fee_provider)
         except Exception as e:
             logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
 
@@ -366,8 +369,10 @@ def broadcast_resiliently(tx_hex):
                 return txid
         except Exception as e:
             logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
-
-    raise Exception("All broadcast API providers failed.")
+    if len(txids) == 1:
+        return txids[0]
+    else:
+        raise Exception("All broadcast API providers failed.")
 
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
