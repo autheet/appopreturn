@@ -353,14 +353,20 @@ def broadcast_resiliently(tx_hex):
         broadcast_with_bitaps,
         broadcast_with_blockstream
     ]
-    random.shuffle(providers)  # Randomize the order
+    random.shuffle(providers)
+    txids = {}
     for provider_func in providers:
         try:
             txid = provider_func(tx_hex)
             print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
-            return txid
+            txids[f"{provider_func.__name__}"]=txid
+            print(txids)
+            if len(txids) >= 2:
+                print(txids)
+                return txid
         except Exception as e:
             logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
+
     raise Exception("All broadcast API providers failed.")
 
 
@@ -392,26 +398,23 @@ def transact(private_key_string, file_digest):
     # 1. Load wallet and explicitly check balance before creating transaction
     key = PrivateKeyTestnet(wif=private_key_string)
     print(f"Wallet loaded for address: {key.address}")
-    for i in range(3):
-        try:
-            recommended_fee_sat_per_byte = get_fee_with_consensus()
-            print(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
-            # Manually fetch unspents using our reliable function to bypass 'bit's networking.
-            unspents = get_unspents_resiliently(key.address)
 
-            raw_tx_hex = key.create_transaction(
-                outputs=[],
-                message=file_digest,
-                unspents=unspents,  # Provide the fetched UTXOs directly
-                fee=recommended_fee_sat_per_byte  # Set the fee rate
-            )
-            print("Raw transaction hex created.")
+    recommended_fee_sat_per_byte = get_fee_with_consensus()
+    print(f"Using recommended fee rate: {recommended_fee_sat_per_byte} sat/vB")
+    # Manually fetch unspents using our reliable function to bypass 'bit's networking.
+    unspents = get_unspents_resiliently(key.address)
 
-            # 3. Broadcast transaction resiliently
-            tx_hash = broadcast_resiliently(raw_tx_hex)
-            return {"tx_hash": tx_hash, 'network': 'testnet3'}
-        except Exception as e:
-            print(f"Attempt {i + 1} of 3 failed: {e}")
+    raw_tx_hex = key.create_transaction(
+        outputs=[],
+        message=file_digest,
+        unspents=unspents,  # Provide the fetched UTXOs directly
+        fee=recommended_fee_sat_per_byte  # Set the fee rate
+    )
+    print("Raw transaction hex created.")
+
+    # 3. Broadcast transaction resiliently
+    tx_hash = broadcast_resiliently(raw_tx_hex)
+    return {"tx_hash": tx_hash, 'network': 'testnet3'}
 
 
 @https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024)
