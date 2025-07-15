@@ -106,9 +106,6 @@ def get_unspent_from_blockcypher(address):
     return unspents
 
 
-
-
-
 def get_unspent_from_blockstream(address):
     """Fetches UTXOs from blockstream.info."""
     print(f"Attempting to fetch UTXOs from blockstream.info for {address}")
@@ -139,6 +136,27 @@ def get_unspent_from_blockstream(address):
         return unspents
 
 
+def get_unspent_from_sochain(address):
+    """Fetches UTXOs from sochain.com."""
+    print(f"Attempting to fetch UTXOs from sochain.com for {address}")
+    url = f"https://sochain.com/api/v2/get_tx_unspent/BTCTEST/{address}"
+    r = requests.get(url, timeout=5)
+    r.raise_for_status()
+    data = r.json().get('data', {})
+    utxos = data.get('txs', [])
+
+    unspents = []
+    for utxo in utxos:
+        # SoChain returns value in BTC, convert to satoshis
+        amount_satoshi = int(decimal.Decimal(utxo['value']) * 100_000_000)
+        unspents.append(
+            Unspent(amount_satoshi, utxo['confirmations'], utxo['script_hex'], utxo['txid'], utxo['output_no']))
+    print(f"Successfully fetched {len(unspents)} UTXOs from sochain.com")
+    return unspents
+
+
+
+
 def get_unspents_resiliently(address):
     """Tries a list of API providers to fetch UTXOs until one succeeds."""
     providers = [
@@ -147,11 +165,7 @@ def get_unspents_resiliently(address):
         get_unspent_from_bitaps,
         get_unspent_from_blockcypher,
         get_unspent_from_blockstream,
-        get_unspent_from_mempool,
-        get_unspent_from_blockchair,
-        get_unspent_from_bitaps,
-        get_unspent_from_blockcypher,
-        get_unspent_from_blockstream
+        get_unspent_from_sochain
     ]
     random.shuffle(providers)
     unspentsdict = {}
@@ -217,12 +231,12 @@ def get_fee_from_blockchair():
 def get_fee_from_bitaps():
     """Fetches recommended fee from bitaps.com."""
     print("Attempting to fetch fee from bitaps.com")
-    url = "https://api.bitaps.com/btc/testnet/v1/mempool/transactions"
+    url = "https://api.bitaps.com/btc/testnet/v1/mempool/fee"
     r = requests.get(url, timeout=2)
     r.raise_for_status()
-    data = r.json()
+    data = r.json().get('data', {})
     # Using medium fee for a balance
-    fee_per_byte = sum(item['feeRate'] for item in response_json['data']['list']) / len(response_json['data']['list'])
+    fee_per_byte = data.get('mediumFee', {}).get('feeRate')
     if fee_per_byte:
         print(f"Got fee from bitaps.com: {fee_per_byte} sat/vB")
         return fee_per_byte
@@ -253,11 +267,28 @@ def get_fee_from_blockstream():
     r.raise_for_status()
     fees = r.json()
     min_fee = min(fees, key=fees.get)
-    fee_per_byte = fees.get(min_fee)
+    fee_per_byte = fees.get(min_fee) # get the minimum fee
     if fee_per_byte:
         print(f"Got fee from blockstream.info: {fee_per_byte} sat/vB")
         return fee_per_byte
-    raise ValueError("Blockstream fee API did not return a fee for 6 block confirmation.")
+    raise ValueError("Blockstream fee API did not return a minimum fee.")
+
+
+def get_fee_from_sochain():
+    """Fetches recommended fee from sochain.com."""
+    print("Attempting to fetch fee from sochain.com")
+    # Using a 6 block confirmation target
+    url = "https://sochain.com/api/v2/get_fee_estimate/BTCTEST/6"
+    r = requests.get(url, timeout=2)
+    r.raise_for_status()
+    data = r.json().get('data', {})
+    fee_per_byte = data.get('estimated_fee_per_byte')
+    if fee_per_byte:
+        # SoChain returns fee as a string, convert to float
+        fee = float(fee_per_byte)
+        print(f"Got fee from sochain.com: {fee} sat/vB")
+        return fee
+    raise ValueError("SoChain fee API did not return 'estimated_fee_per_byte'.")
 
 
 def get_fee_with_consensus():
@@ -270,6 +301,7 @@ def get_fee_with_consensus():
         get_fee_from_bitaps,
         get_fee_from_blockcypher,
         get_fee_from_blockstream,
+        get_fee_from_sochain,
     ]
     random.shuffle(providers)  # Shuffle the providers for better distribution
     fees = []
@@ -366,6 +398,20 @@ def broadcast_with_blockstream(tx_hex):
     raise Exception(f"Blockstream broadcast failed. Response: {txid}")
 
 
+def broadcast_with_sochain(tx_hex):
+    """Broadcasts transaction using sochain.com."""
+    print("Broadcasting with sochain.com...")
+    url = "https://sochain.com/api/v2/send_tx/BTCTEST"
+    response = requests.post(url, json={'tx_hex': tx_hex}, timeout=5)
+    response.raise_for_status()
+    data = response.json().get('data', {})
+    txid = data.get('txid')
+    if txid:
+        return txid
+    raise Exception(f"SoChain broadcast failed. Response: {response.text}")
+
+
+
 def broadcast_resiliently(tx_hex):
     """Tries a list of API providers to broadcast a transaction until one succeeds."""
     providers = [
@@ -374,6 +420,7 @@ def broadcast_resiliently(tx_hex):
         broadcast_with_blockcypher,
         broadcast_with_bitaps,
         broadcast_with_blockstream,
+        broadcast_with_sochain,
     ]
     random.shuffle(providers)
     txids = {}
