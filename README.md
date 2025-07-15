@@ -15,4 +15,11 @@ This application generates a unique cryptographic fingerprint (a SHA-256 digest)
 -   **Privacy-Focused**: Your file content never leaves your local device.
 -   **Cross-Platform**: Works on Web, Android, iOS, macOS, Windows, and Linux thanks to Flutter.
 -   **Secure & Verifiable**: Uses the SHA-256 cryptographic standard, and proofs can be verified on a public blockchain explorer.
--   **Undeletable**: Data could never be deleted from the Blockchain.
+
+## Color Scheme
+
+The application uses a unified color scheme across all platforms, derived from a primary seed color. This ensures a consistent and accessible user experience in both light and dark modes.
+
+-   **Seed Color**: A deep, professional blue (`#0D47A1`).
+-   **Light Mode**: Features a clean, off-white background (`#FCFDFD`) with dark text and accents generated from the seed color.
+-   **Dark Mode**: Uses a dark, desaturated blue background (`#0A1118`) with light text and accents generated from the seed color.
