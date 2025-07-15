@@ -46,8 +46,10 @@
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UIStatusBarHidden</key>
-		<false/>
+		<true/>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>This app enables you to select a photo to create a cryptographic digest. The photo itself is not uploaded or stored, only the digest is used.</string>
+		<key>UIViewControllerBasedStatusBarAppearance</key>
+		<false/>
 	</dict>
 </plist>
