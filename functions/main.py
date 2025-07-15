@@ -163,7 +163,7 @@ def get_unspents_resiliently(address):
 
             if balance > 0:
                 print(f"Successfully fetched UTXOs using {provider_func.__name__}")
-                if not unspents or unspents != []:
+                if unspents != []:
                     unspentsdict[provider_func.__name__] = unspents
                 if len(unspentsdict) >= 2:
                     if find_duplicate_value_oneliner(unspentsdict):
@@ -175,9 +175,9 @@ def get_unspents_resiliently(address):
 
         except Exception as e:
             print(f"Provider {provider_func.__name__} failed: {e}")
-    if len(unspentsdict) == 1:
-        logging.warning(f"Only one UTXO provider succeeded for address {key.address}.")
-        return unspentsdict[0]
+    if len(unspentsdict) >= 1:
+        logging.warning(f"No consensous or only one UTXO provider succeeded for address {key.address}.")
+        return next(iter(unspentsdict.values()))
     raise Exception("All UTXO API providers failed.")
 
 
