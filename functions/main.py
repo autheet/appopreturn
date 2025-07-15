@@ -10,7 +10,8 @@ from firebase_functions.params import SecretParam
 from os.path import join, dirname
 import requests
 import random
-import statistics  # Added for median calculation in fees
+import statistics
+import decimal
 
 # Import the library and the specific module we need to patch
 from bit import PrivateKeyTestnet, crypto
@@ -25,7 +26,7 @@ from bitcoinlib.services.mempool import MempoolClient
 
 def get_unspent_from_mempool(address):
     """Fetches UTXOs from mempool.space."""
-    logging.info(f"Attempting to fetch UTXOs from mempool.space for {address}")
+    print(f"Attempting to fetch UTXOs from mempool.space for {address}")
     tip_height_url = "https://mempool.space/testnet/api/blocks/tip/height"
     tip_height_r = requests.get(tip_height_url, timeout=5)
     tip_height_r.raise_for_status()
@@ -33,7 +34,7 @@ def get_unspent_from_mempool(address):
 
     url = f"https://mempool.space/testnet/api/address/{address}/utxo"
     r = requests.get(url, timeout=5)
-    if r.status_code == 404: return []
+    if r.status_code == 404: raise Exception(f"Address {address} utxo not found in mempool.space")
     r.raise_for_status()
     utxos = r.json()
 
@@ -49,13 +50,13 @@ def get_unspent_from_mempool(address):
             'confirmed') else 0
 
         unspents.append(Unspent(utxo['value'], confirmations, scriptpubkey, utxo['txid'], utxo['vout']))
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from mempool.space")
+    print(f"Successfully fetched {len(unspents)} UTXOs from mempool.space")
     return unspents
 
 
 def get_unspent_from_blockchair(address):
     """Fetches UTXOs from blockchair.com."""
-    logging.info(f"Attempting to fetch UTXOs from blockchair.com for {address}")
+    print(f"Attempting to fetch UTXOs from blockchair.com for {address}")
     url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=1000"
     r = requests.get(url, timeout=5)
     r.raise_for_status()
@@ -66,15 +67,15 @@ def get_unspent_from_blockchair(address):
     for utxo in utxos:
         unspents.append(
             Unspent(utxo['value'], utxo['confirmations'], utxo['script_hex'], utxo['transaction_hash'], utxo['index']))
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockchair.com")
+    print(f"Successfully fetched {len(unspents)} UTXOs from blockchair.com")
     return unspents
 
 
 def get_unspent_from_bitaps(address):
     """Fetches UTXOs from bitaps.com."""
-    logging.info(f"Attempting to fetch UTXOs from bitaps.com for {address}")
+    print(f"Attempting to fetch UTXOs from bitaps.com for {address}")
     url = f"https://api.bitaps.com/btc/testnet/v1/address/unspents/{address}"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=3)
     r.raise_for_status()
     data = r.json().get('data', {})
     utxos = data.get('list', [])
@@ -83,7 +84,7 @@ def get_unspent_from_bitaps(address):
     for utxo in utxos:
         # Bitaps provides confirmations directly
         unspents.append(Unspent(utxo['value'], utxo['confirmations'], utxo['scriptPubKey'], utxo['txId'], utxo['vOut']))
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from bitaps.com")
+    print(f"Successfully fetched {len(unspents)} UTXOs from bitaps.com")
     return unspents
 
 
@@ -105,9 +106,12 @@ def get_unspent_from_blockcypher(address):
     return unspents
 
 
+
+
+
 def get_unspent_from_blockstream(address):
     """Fetches UTXOs from blockstream.info."""
-    logging.info(f"Attempting to fetch UTXOs from blockstream.info for {address}")
+    print(f"Attempting to fetch UTXOs from blockstream.info for {address}")
     tip_height_url = "https://blockstream.info/testnet/api/blocks/tip/height"
     tip_height_r = requests.get(tip_height_url, timeout=5)
     tip_height_r.raise_for_status()
@@ -130,7 +134,7 @@ def get_unspent_from_blockstream(address):
             'confirmed') else 0
 
         unspents.append(Unspent(utxo['value'], confirmations, scriptpubkey, utxo['txid'], utxo['vout']))
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockstream.info")
+    print(f"Successfully fetched {len(unspents)} UTXOs from blockstream.info")
     if unspents != []:
         return unspents
 
@@ -142,18 +146,31 @@ def get_unspents_resiliently(address):
         get_unspent_from_blockchair,
         get_unspent_from_bitaps,
         get_unspent_from_blockcypher,
-        get_unspent_from_blockstream  # New provider added
+        get_unspent_from_blockstream
     ]
     random.shuffle(providers)
+    unspentsdict = {}
+
+    def find_duplicate_value_oneliner(data_dict):
+        """Finds the first duplicate value in a dictionary in one line."""
+        values = list(data_dict.values())
+        return next((v for i, v in enumerate(values) if v in values[:i]), None)
+
     for provider_func in providers:
         try:
             unspents = provider_func(address)
             balance = sum(utxo.amount for utxo in unspents)
+
             if balance > 0:
-                logging.info(f"Successfully fetched UTXOs using {provider_func.__name__}")
-                return unspents
+                print(f"Successfully fetched UTXOs using {provider_func.__name__}")
+                if not unspents or unspents != []:
+                    unspentsdict[provider_func.__name__] = unspents
+                if len(unspentsdict) >= 2:
+                    if find_duplicate_value_oneliner(unspentsdict):
+                        print(f"Duplicate UTXOs found in {unspentsdict}")
+                        return find_duplicate_value_oneliner(unspentsdict)
             if balance == 0:
-                logging.error(f"Wallet for address {key.address} has no funds following {provider_func.__name__}.")
+                logging.warning(f"Wallet for address {key.address} has no funds following {provider_func.__name__}.")
 
 
         except Exception as e:
@@ -179,7 +196,7 @@ def get_fee_from_blockchair():
     """Fetches recommended fee from blockchair.com."""
     print("Attempting to fetch fee from blockchair.com")
     url = "https://api.blockchair.com/bitcoin/testnet/stats"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
     fee_per_byte = data.get('suggested_transaction_fee_per_byte_sat')
@@ -193,7 +210,7 @@ def get_fee_from_bitaps():
     """Fetches recommended fee from bitaps.com."""
     print("Attempting to fetch fee from bitaps.com")
     url = "https://api.bitaps.com/btc/testnet/v1/mempool/transactions"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json()
     # Using medium fee for a balance
@@ -208,7 +225,7 @@ def get_fee_from_blockcypher():
     """Fetches recommended fee from blockcypher.com."""
     print("Attempting to fetch fee from blockcypher.com")
     url = "https://api.blockcypher.com/v1/btc/test3"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json()
     # Fee is in satoshis per kilobyte, convert to sat/vB
@@ -224,10 +241,9 @@ def get_fee_from_blockstream():
     """Fetches recommended fee from blockstream.info."""
     print("Attempting to fetch fee from blockstream.info")
     url = "https://blockstream.info/testnet/api/fee-estimates"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     fees = r.json()
-    # Using fee for 6 blocks (~1 hour) as a medium priority fee
     min_fee = min(fees, key=fees.get)
     fee_per_byte = fees.get(min_fee)
     if fee_per_byte:
@@ -245,13 +261,17 @@ def get_fee_with_consensus():
         get_fee_from_blockchair,
         get_fee_from_bitaps,
         get_fee_from_blockcypher,
-        get_fee_from_blockstream  # New provider added
+        get_fee_from_blockstream,
     ]
     random.shuffle(providers)  # Shuffle the providers for better distribution
     fees = []
     for provider_func in providers:
         try:
-            fees.append(provider_func())
+            fee_provider = provider_func()
+            if fee_provider >= 20:
+                fee_provider = 20
+                print(f"Fee provider {provider_func.__name__} returned a too high fee. Using 20 sat/vB")
+            fees.append(fee_provider)
         except Exception as e:
             logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
 
@@ -273,15 +293,9 @@ def get_fee_with_consensus():
         print(f"Only one fee provider succeeded: {single_fee} sat/vB")
         return chosen_fee
     else:
-        logging.warning("All fee providers failed. Falling back to default fee.")
+        logging.error("All fee providers failed. Falling back to default fee.")
         return 1  # Fallback fee
 
-    # Using the median fee is more robust against outliers than the average.
-    chosen_fee = int(statistics.median(fees))
-    print(f"Successfully fetched fees: {fees}. Using median value: {chosen_fee} sat/vB")
-
-    # Ensure fee is at least 1 sat/vB
-    return max(1, chosen_fee)
 
 
 def broadcast_with_mempool(tx_hex):
@@ -351,7 +365,7 @@ def broadcast_resiliently(tx_hex):
         broadcast_with_blockchair,
         broadcast_with_blockcypher,
         broadcast_with_bitaps,
-        broadcast_with_blockstream
+        broadcast_with_blockstream,
     ]
     random.shuffle(providers)
     txids = {}
@@ -360,14 +374,15 @@ def broadcast_resiliently(tx_hex):
             txid = provider_func(tx_hex)
             print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
             txids[f"{provider_func.__name__}"]=txid
-            print(txids)
             if len(txids) >= 2:
-                print(txids)
+                print(f"broadcasted with {txids}")
                 return txid
         except Exception as e:
             logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
-
-    raise Exception("All broadcast API providers failed.")
+    if len(txids) == 1:
+        return txids[0]
+    else:
+        raise Exception("All broadcast API providers failed.")
 
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
@@ -417,7 +432,7 @@ def transact(private_key_string, file_digest):
     return {"tx_hash": tx_hash, 'network': 'testnet3'}
 
 
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=120)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
