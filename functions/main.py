@@ -26,7 +26,7 @@ from bitcoinlib.services.mempool import MempoolClient
 
 def get_unspent_from_mempool(address):
     """Fetches UTXOs from mempool.space."""
-    logging.info(f"Attempting to fetch UTXOs from mempool.space for {address}")
+    print(f"Attempting to fetch UTXOs from mempool.space for {address}")
     tip_height_url = "https://mempool.space/testnet/api/blocks/tip/height"
     tip_height_r = requests.get(tip_height_url, timeout=5)
     tip_height_r.raise_for_status()
@@ -50,13 +50,13 @@ def get_unspent_from_mempool(address):
             'confirmed') else 0
 
         unspents.append(Unspent(utxo['value'], confirmations, scriptpubkey, utxo['txid'], utxo['vout']))
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from mempool.space")
+    print(f"Successfully fetched {len(unspents)} UTXOs from mempool.space")
     return unspents
 
 
 def get_unspent_from_blockchair(address):
     """Fetches UTXOs from blockchair.com."""
-    logging.info(f"Attempting to fetch UTXOs from blockchair.com for {address}")
+    print(f"Attempting to fetch UTXOs from blockchair.com for {address}")
     url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=1000"
     r = requests.get(url, timeout=5)
     r.raise_for_status()
@@ -67,13 +67,13 @@ def get_unspent_from_blockchair(address):
     for utxo in utxos:
         unspents.append(
             Unspent(utxo['value'], utxo['confirmations'], utxo['script_hex'], utxo['transaction_hash'], utxo['index']))
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockchair.com")
+    print(f"Successfully fetched {len(unspents)} UTXOs from blockchair.com")
     return unspents
 
 
 def get_unspent_from_bitaps(address):
     """Fetches UTXOs from bitaps.com."""
-    logging.info(f"Attempting to fetch UTXOs from bitaps.com for {address}")
+    print(f"Attempting to fetch UTXOs from bitaps.com for {address}")
     url = f"https://api.bitaps.com/btc/testnet/v1/address/unspents/{address}"
     r = requests.get(url, timeout=5)
     r.raise_for_status()
@@ -84,7 +84,7 @@ def get_unspent_from_bitaps(address):
     for utxo in utxos:
         # Bitaps provides confirmations directly
         unspents.append(Unspent(utxo['value'], utxo['confirmations'], utxo['scriptPubKey'], utxo['txId'], utxo['vOut']))
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from bitaps.com")
+    print(f"Successfully fetched {len(unspents)} UTXOs from bitaps.com")
     return unspents
 
 
@@ -111,7 +111,7 @@ def get_unspent_from_blockcypher(address):
 
 def get_unspent_from_blockstream(address):
     """Fetches UTXOs from blockstream.info."""
-    logging.info(f"Attempting to fetch UTXOs from blockstream.info for {address}")
+    print(f"Attempting to fetch UTXOs from blockstream.info for {address}")
     tip_height_url = "https://blockstream.info/testnet/api/blocks/tip/height"
     tip_height_r = requests.get(tip_height_url, timeout=5)
     tip_height_r.raise_for_status()
@@ -134,7 +134,7 @@ def get_unspent_from_blockstream(address):
             'confirmed') else 0
 
         unspents.append(Unspent(utxo['value'], confirmations, scriptpubkey, utxo['txid'], utxo['vout']))
-    logging.info(f"Successfully fetched {len(unspents)} UTXOs from blockstream.info")
+    print(f"Successfully fetched {len(unspents)} UTXOs from blockstream.info")
     if unspents != []:
         return unspents
 
@@ -162,7 +162,7 @@ def get_unspents_resiliently(address):
             balance = sum(utxo.amount for utxo in unspents)
 
             if balance > 0:
-                logging.info(f"Successfully fetched UTXOs using {provider_func.__name__}")
+                print(f"Successfully fetched UTXOs using {provider_func.__name__}")
                 if not unspents or unspents != []:
                     unspentsdict[provider_func.__name__] = unspents
                 if len(unspentsdict) >= 2:
@@ -170,7 +170,7 @@ def get_unspents_resiliently(address):
                         print(f"Duplicate UTXOs found in {unspentsdict}")
                         return find_duplicate_value_oneliner(unspentsdict)
             if balance == 0:
-                logging.error(f"Wallet for address {key.address} has no funds following {provider_func.__name__}.")
+                logging.warning(f"Wallet for address {key.address} has no funds following {provider_func.__name__}.")
 
 
         except Exception as e:
@@ -293,7 +293,7 @@ def get_fee_with_consensus():
         print(f"Only one fee provider succeeded: {single_fee} sat/vB")
         return chosen_fee
     else:
-        logging.warning("All fee providers failed. Falling back to default fee.")
+        logging.error("All fee providers failed. Falling back to default fee.")
         return 1  # Fallback fee
 
     # Using the median fee is more robust against outliers than the average.
