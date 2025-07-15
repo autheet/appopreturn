@@ -35,7 +35,7 @@ void main() async {
   // Use the debug provider in debug mode, and the production providers in release mode.
   if (kDebugMode) {
     await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
+      androidProvider: AndroidProvider.playIntegrity,
       appleProvider: AppleProvider.debug,
       webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
     );
