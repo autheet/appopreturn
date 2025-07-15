@@ -155,6 +155,20 @@ def get_unspent_from_sochain(address):
     return unspents
 
 
+def get_unspent_from_insight(address):
+    """Fetches UTXOs from test-insight.bitpay.com."""
+    print(f"Attempting to fetch UTXOs from test-insight.bitpay.com for {address}")
+    url = f"https://test-insight.bitpay.com/api/addr/{address}/utxo"
+    r = requests.get(url, timeout=5)
+    r.raise_for_status()
+    utxos = r.json()
+
+    unspents = []
+    for utxo in utxos:
+        unspents.append(
+            Unspent(utxo['satoshis'], utxo['confirmations'], utxo['scriptPubKey'], utxo['txid'], utxo['vout']))
+    print(f"Successfully fetched {len(unspents)} UTXOs from test-insight.bitpay.com")
+    return unspents
 
 
 def get_unspents_resiliently(address):
@@ -165,7 +179,8 @@ def get_unspents_resiliently(address):
         get_unspent_from_bitaps,
         get_unspent_from_blockcypher,
         get_unspent_from_blockstream,
-        get_unspent_from_sochain
+        get_unspent_from_sochain,
+        get_unspent_from_insight
     ]
     random.shuffle(providers)
     unspentsdict = {}
@@ -235,12 +250,12 @@ def get_fee_from_bitaps():
     r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
-    # Using medium fee for a balance
-    fee_per_byte = data.get('mediumFee', {}).get('feeRate')
+    # Using low fee for minimum
+    fee_per_byte = data.get('lowFee', {}).get('feeRate')
     if fee_per_byte:
         print(f"Got fee from bitaps.com: {fee_per_byte} sat/vB")
         return fee_per_byte
-    raise ValueError("Bitaps fee API did not return 'medium' fee rate.")
+    raise ValueError("Bitaps fee API did not return 'lowFee' fee rate.")
 
 
 def get_fee_from_blockcypher():
@@ -256,7 +271,7 @@ def get_fee_from_blockcypher():
         fee_per_byte = fee_per_kb / 1000
         print(f"Got fee from blockcypher.com: {fee_per_byte} sat/vB")
         return fee_per_byte
-    raise ValueError("Blockcypher API did not return 'medium_fee_per_kb'.")
+    raise ValueError("Blockcypher API did not return 'low_fee_per_kb'.")
 
 
 def get_fee_from_blockstream():
@@ -268,7 +283,7 @@ def get_fee_from_blockstream():
     fees = r.json()
     min_fee = min(fees, key=fees.get)
     fee_per_byte = fees.get(min_fee) # get the minimum fee
-    if fee_per_byte:
+    if fee_per_byte < 10:
         print(f"Got fee from blockstream.info: {fee_per_byte} sat/vB")
         return fee_per_byte
     raise ValueError("Blockstream fee API did not return a minimum fee.")
@@ -291,6 +306,26 @@ def get_fee_from_sochain():
     raise ValueError("SoChain fee API did not return 'estimated_fee_per_byte'.")
 
 
+def get_fee_from_insight():
+    """Fetches recommended fee from test-insight.bitpay.com."""
+    print("Attempting to fetch fee from test-insight.bitpay.com")
+    # 6 block target for an economy fee
+    url = "https://test-insight.bitpay.com/api/utils/estimatefee?nbBlocks=6"
+    r = requests.get(url, timeout=2)
+    r.raise_for_status()
+    data = r.json()
+    # API returns fee in BTC/kB. We need sat/vB.
+    fee_btc_per_kb = next(iter(data.values()), None)
+    if fee_btc_per_kb and fee_btc_per_kb > 0:
+        # Convert BTC/kB to sat/vB
+        # 1 BTC = 10^8 satoshis. 1 kB = 1000 bytes.
+        # (fee_btc_per_kb * 10^8) / 1000 = fee_sat_per_byte
+        fee_per_byte = (fee_btc_per_kb * 100_000_000) / 1000
+        print(f"Got fee from test-insight.bitpay.com: {fee_per_byte} sat/vB")
+        return fee_per_byte
+    raise ValueError("Insight fee API did not return a valid fee.")
+
+
 def get_fee_with_consensus():
     """
     Tries multiple API providers to fetch recommended fees and uses the median.
@@ -302,6 +337,7 @@ def get_fee_with_consensus():
         get_fee_from_blockcypher,
         get_fee_from_blockstream,
         get_fee_from_sochain,
+        get_fee_from_insight
     ]
     random.shuffle(providers)  # Shuffle the providers for better distribution
     fees = []
@@ -411,6 +447,18 @@ def broadcast_with_sochain(tx_hex):
     raise Exception(f"SoChain broadcast failed. Response: {response.text}")
 
 
+def broadcast_with_insight(tx_hex):
+    """Broadcasts transaction using test-insight.bitpay.com."""
+    print("Broadcasting with test-insight.bitpay.com...")
+    url = "https://test-insight.bitpay.com/api/tx/send"
+    response = requests.post(url, json={'rawtx': tx_hex}, timeout=5)
+    response.raise_for_status()
+    data = response.json()
+    txid = data.get('txid')
+    if txid:
+        return txid
+    raise Exception(f"Insight broadcast failed. Response: {response.text}")
+
 
 def broadcast_resiliently(tx_hex):
     """Tries a list of API providers to broadcast a transaction until one succeeds."""
@@ -421,6 +469,7 @@ def broadcast_resiliently(tx_hex):
         broadcast_with_bitaps,
         broadcast_with_blockstream,
         broadcast_with_sochain,
+        broadcast_with_insight
     ]
     random.shuffle(providers)
     txids = {}
