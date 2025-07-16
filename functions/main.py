@@ -1,3 +1,5 @@
+from posix import cpu_count
+
 import firebase_admin
 from firebase_admin import firestore
 import logging
@@ -58,7 +60,7 @@ def get_unspent_from_blockchair(address):
     """Fetches UTXOs from blockchair.com."""
     print(f"Attempting to fetch UTXOs from blockchair.com for {address}")
     url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=1000"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
     utxos = data.get(address, {}).get('utxo', [])
@@ -149,7 +151,7 @@ def get_unspent_from_sochain(address):
     """Fetches UTXOs from sochain.com."""
     print(f"Attempting to fetch UTXOs from sochain.com for {address}")
     url = f"https://sochain.com/api/v2/get_tx_unspent/BTCTEST/{address}"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
     utxos = data.get('txs', [])
@@ -168,7 +170,7 @@ def get_unspent_from_insight(address):
     """Fetches UTXOs from test-insight.bitpay.com."""
     print(f"Attempting to fetch UTXOs from test-insight.bitpay.com for {address}")
     url = f"https://test-insight.bitpay.com/api/addr/{address}/utxo"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     utxos = r.json()
 
@@ -466,7 +468,7 @@ def broadcast_with_sochain(tx_hex):
     """Broadcasts transaction using sochain.com."""
     print("Broadcasting with sochain.com...")
     url = "https://sochain.com/api/v2/send_tx/BTCTEST"
-    response = requests.post(url, json={'tx_hex': tx_hex}, timeout=5)
+    response = requests.post(url, json={'tx_hex': tx_hex}, timeout=2)
     response.raise_for_status()
     data = response.json().get('data', {})
     txid = data.get('txid')
@@ -568,7 +570,7 @@ def transact(private_key_string, file_digest):
 
 
 # FIX: Added BLOCKCYPHER_TOKEN to the list of secrets.
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=180)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=180, cpu=2)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
