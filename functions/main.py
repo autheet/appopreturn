@@ -75,7 +75,7 @@ def get_unspent_from_bitaps(address):
     """Fetches UTXOs from bitaps.com."""
     print(f"Attempting to fetch UTXOs from bitaps.com for {address}")
     url = f"https://api.bitaps.com/btc/testnet/v1/address/unspents/{address}"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
     utxos = data.get('list', [])
@@ -99,7 +99,7 @@ def get_unspent_from_blockcypher(address):
     if token:
         params['token'] = token
 
-    r = requests.get(url, params=params, timeout=5)
+    r = requests.get(url, params=params, timeout=3)
     r.raise_for_status()
     data = r.json()
     if 'error' in data:
@@ -569,7 +569,7 @@ def transact(private_key_string, file_digest):
 
 
 # FIX: Added BLOCKCYPHER_TOKEN to the list of secrets.
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=120)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=180)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
