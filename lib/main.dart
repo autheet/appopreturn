@@ -282,7 +282,7 @@ class _CreateProofPageState extends State<CreateProofPage>
 
   Future<void> _selectFile() async {
     FilePickerResult? result =
-        await FilePicker.platform.pickFiles(withData: true);
+    await FilePicker.platform.pickFiles(withData: true);
     if (result != null && result.files.single.bytes != null) {
       await _processData(result.files.single.name, result.files.single.bytes!);
     }
@@ -294,8 +294,14 @@ class _CreateProofPageState extends State<CreateProofPage>
       _loading = true;
     });
     try {
+      // Set a 180-second timeout for the callable function.
       final HttpsCallable callable = FirebaseFunctions.instance
-          .httpsCallable('process_appopreturn_request_free');
+          .httpsCallable(
+        'process_appopreturn_request_free',
+        options: HttpsCallableOptions(
+          timeout: const Duration(seconds: 180),
+        ),
+      );
       final result = await callable.call(<String, dynamic>{'digest': _digest});
       setState(() {
         _transactionId = result.data['transaction_id'];
@@ -539,7 +545,7 @@ class _CreateProofPageState extends State<CreateProofPage>
           const SizedBox(height:.8),
           CopyableText(
             label:
-                'Your proof is permanently recorded. Here is the Transaction ID:',
+            'Your proof is permanently recorded. Here is the Transaction ID:',
             text: _transactionId!,
             textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 13),
           ),
