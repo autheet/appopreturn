@@ -18,6 +18,11 @@ This application generates a unique cryptographic fingerprint (a SHA-256 digest)
 -   **Cross-Platform**: Works on Web, Android, iOS, macOS, Windows, and Linux thanks to Flutter.
 -   **Secure & Verifiable**: Uses the SHA-256 cryptographic standard, and proofs can be verified on a public blockchain explorer.
 
+## Project Structue
+
+in the `functions` folder you can find the cloud function responsible for creating the bitcoin transaction. The root folder is basically a `flutter` project with its child folders + functions folder.
+
+
 ## Color Scheme
 
 The application uses a unified color scheme across all platforms, derived from a primary seed color. This ensures a consistent and accessible user experience in both light and dark modes.
