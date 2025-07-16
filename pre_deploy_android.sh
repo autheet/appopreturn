@@ -2,6 +2,20 @@
 set -e # Exit immediately if a command exits with a non-zero status.
 set -x # Enable debug output
 
+
+# --- Environment Variable Loading ---
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+  export $(cat .env | sed 's/#.*//g' | xargs)
+fi
+
+# Check for the required secret
+if [ -z "$RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
+  echo "Error: RECAPTCHA_ENTERPRISE_SITE_KEY is not set in the .env file."
+  echo "Please create a .env file and add: RECAPTCHA_ENTERPRISE_SITE_KEY=your_key"
+  exit 1
+fi
+# --- End of Environment Variable Loading ---
 # --- Configuration ---
 MAIN_BRANCH_NAME="main"
 FIREBASE_ANDROID_APP_ID="1:1706363000:android:ec92a8ef9867c44ce1858d" # From your google-services.json via firebase_options.dart
