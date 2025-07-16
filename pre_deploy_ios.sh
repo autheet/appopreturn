@@ -52,6 +52,8 @@ flutter build ipa --release \
   --build-number="$BUILD_NUMBER" \
   --obfuscate \
   --split-debug-info="$DEBUG_SYMBOL_PATH_IOS" \
+  --dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY="$RECAPTCHA_ENTERPRISE_SITE_KEY"
+
   # --export-options-plist=path/to/ExportOptions.plist # Optional: if you need specific export options
 
 echo "Flutter iOS IPA build attempt finished."

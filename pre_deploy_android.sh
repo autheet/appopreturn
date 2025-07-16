@@ -46,7 +46,9 @@ flutter build appbundle --release \
   --build-name="$BUILD_NAME" \
   --build-number="$BUILD_NUMBER" \
   --obfuscate \
-  --split-debug-info="$DEBUG_SYMBOL_PATH_ANDROID"
+  --split-debug-info="$DEBUG_SYMBOL_PATH_ANDROID" \
+  --dart-define=RECAPTCHA_ENTERPRISE_SITE_KEY="$RECAPTCHA_ENTERPRISE_SITE_KEY"
+
 
 echo "Flutter Android app bundle built successfully."
 echo "Android App Bundle typically located at: build/app/outputs/bundle/release/app-release.aab" # Path might vary with custom buildDir
