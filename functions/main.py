@@ -501,22 +501,21 @@ def broadcast_resiliently(tx_hex):
     ]
     random.shuffle(providers)
     txids = {}
-    for retry_count in range(3):
-        for provider_func in providers:
-            try:
-                txid = provider_func(tx_hex)
-                print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
-                txids[f"{provider_func.__name__}"] = txid
-                if len(txids) >= 2:
-                    print(f"broadcasted with {txids}")
-                    return txid
-            except Exception as e:
-                logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
-        if len(txids) >= 1:
-            logging.warning(f"only one broadcast provider succeeded: {txids}")
-            return next(iter(txids.values()))
-    else:
-        raise Exception("All broadcast API providers failed.")
+
+    for provider_func in providers:
+        try:
+            txid = provider_func(tx_hex)
+            print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
+            txids[f"{provider_func.__name__}"] = txid
+            if len(txids) >= 2:
+                print(f"broadcasted with {txids}")
+                return txid
+        except Exception as e:
+            logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
+    if len(txids) >= 1:
+        logging.warning(f"only one broadcast provider succeeded: {txids}")
+        return next(iter(txids.values()))
+    raise Exception("All broadcast API providers failed.")
 
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
