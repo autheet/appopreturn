@@ -32,27 +32,27 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Use the debug provider in debug mode, and the production providers in release mode.
+
+  // Define providers based on the build mode to keep it clean.
+  final appleProvider = kDebugMode ? AppleProvider.debug : AppleProvider.appAttest;
+  final androidProvider = kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity;
+
+  // Activate App Check with the correct providers.
+  await FirebaseAppCheck.instance.activate(
+    webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
+    androidProvider: androidProvider,
+    appleProvider: appleProvider,
+  );
+
+  // You can still listen for the debug token when in debug mode.
   if (kDebugMode) {
-    // In debug mode, use the debug provider for Android.
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug, // Use the debug provider
-      appleProvider: AppleProvider.appAttest,
-      webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
-    );
     FirebaseAppCheck.instance.onTokenChange.listen((token) {
       if (token != null) {
-        print('App Check debug token: $token');
+        print('App Check debug token for testing: $token');
       }
     });
-  } else {
-    // In release mode, use the reCAPTCHA Enterprise key provided at build time.
-    await FirebaseAppCheck.instance.activate(
-      webProvider: ReCaptchaEnterpriseProvider(reCaptchaEnterpriseSiteKey),
-      androidProvider: AndroidProvider.playIntegrity,
-      appleProvider: AppleProvider.appAttest,
-    );
   }
+
 
   runApp(const AppOpReturn());
 }
