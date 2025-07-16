@@ -161,15 +161,8 @@ class _AppShellState extends State<AppShell> {
 
         if (constraints.maxWidth < navigationRailThreshold) {
           return Scaffold(
-            body: Column(
-              children: [
-                Expanded(
-                  child: Center(
-                    child: _widgetOptions.elementAt(pageIndex),
-                  ),
-                ),
-                const Footer(),
-              ],
+            body: Center(
+              child: _widgetOptions.elementAt(pageIndex),
             ),
             bottomNavigationBar: BottomNavigationBar(
               type: BottomNavigationBarType.fixed,
@@ -191,15 +184,8 @@ class _AppShellState extends State<AppShell> {
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
                 Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: _widgetOptions.elementAt(pageIndex),
-                        ),
-                      ),
-                      const Footer(),
-                    ],
+                  child: Center(
+                    child: _widgetOptions.elementAt(pageIndex),
                   ),
                 ),
               ],
@@ -603,21 +589,6 @@ class CopyableText extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class Footer extends StatelessWidget {
-  const Footer({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: TextButton(
-        onPressed: () => launchUrl(Uri.parse('privacy_en.html')),
-        child: const Text('Privacy Policy'),
-      ),
     );
   }
 }
