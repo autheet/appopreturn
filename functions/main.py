@@ -187,7 +187,7 @@ def get_unspents_resiliently(address):
     providers = [
         get_unspent_from_mempool,
         get_unspent_from_blockchair,
-        get_unspent_from_bitaps,
+        # get_unspent_from_bitaps, <- too unreliable, just wastes time
         get_unspent_from_blockcypher,
         get_unspent_from_blockstream,
         # get_unspent_from_sochain, <<- too unreliable, just wastes time
@@ -496,7 +496,7 @@ def broadcast_resiliently(tx_hex):
         broadcast_with_mempool,
         broadcast_with_blockchair,
         broadcast_with_blockcypher,
-        broadcast_with_bitaps,
+        # broadcast_with_bitaps, <- too unreliable, just wastes time
         broadcast_with_blockstream,
         # broadcast_with_sochain, <- too unreliable, just wastes time
         broadcast_with_insight
