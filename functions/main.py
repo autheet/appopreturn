@@ -33,7 +33,7 @@ def get_unspent_from_mempool(address):
     current_height = int(tip_height_r.text)
 
     url = f"https://mempool.space/testnet/api/address/{address}/utxo"
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=2)
     if r.status_code == 404: raise Exception(f"Address {address} utxo not found in mempool.space")
     r.raise_for_status()
     utxos = r.json()
@@ -41,7 +41,7 @@ def get_unspent_from_mempool(address):
     unspents = []
     for utxo in utxos:
         tx_url = f"https://mempool.space/testnet/api/tx/{utxo['txid']}"
-        tx_r = requests.get(tx_url, timeout=3)
+        tx_r = requests.get(tx_url, timeout=1)
         tx_r.raise_for_status()
         tx_data = tx_r.json()
         scriptpubkey = tx_data['vout'][utxo['vout']]['scriptpubkey']
@@ -75,7 +75,7 @@ def get_unspent_from_bitaps(address):
     """Fetches UTXOs from bitaps.com."""
     print(f"Attempting to fetch UTXOs from bitaps.com for {address}")
     url = f"https://api.bitaps.com/btc/testnet/v1/address/unspents/{address}"
-    r = requests.get(url, timeout=3)
+    r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
     utxos = data.get('list', [])
@@ -99,7 +99,7 @@ def get_unspent_from_blockcypher(address):
     if token:
         params['token'] = token
 
-    r = requests.get(url, params=params, timeout=5)
+    r = requests.get(url, params=params, timeout=3)
     r.raise_for_status()
     data = r.json()
     if 'error' in data:
@@ -489,7 +489,7 @@ def broadcast_with_insight(tx_hex):
 
 
 def broadcast_resiliently(tx_hex):
-    """Tries a list of API providers to broadcast a transaction until one succeeds."""
+    """Tries a list of API providers to broadcast a transaction until two succeeds. if only one succeeds, returns it, too with a warning"""
     providers = [
         broadcast_with_mempool,
         broadcast_with_blockchair,
@@ -501,22 +501,21 @@ def broadcast_resiliently(tx_hex):
     ]
     random.shuffle(providers)
     txids = {}
-    for retry_count in range(3):
-        for provider_func in providers:
-            try:
-                txid = provider_func(tx_hex)
-                print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
-                txids[f"{provider_func.__name__}"] = txid
-                if len(txids) >= 2:
-                    print(f"broadcasted with {txids}")
-                    return txid
-            except Exception as e:
-                logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
-        if len(txids) >= 1:
-            logging.warning(f"only one broadcast provider succeeded: {txids}")
-            return next(iter(txids.values()))
-    else:
-        raise Exception("All broadcast API providers failed.")
+
+    for provider_func in providers:
+        try:
+            txid = provider_func(tx_hex)
+            print(f"Successfully broadcasted with {provider_func.__name__}. TXID: {txid}")
+            txids[f"{provider_func.__name__}"] = txid
+            if len(txids) >= 2:
+                print(f"broadcasted with {txids}")
+                return txid
+        except Exception as e:
+            logging.warning(f"Broadcast provider {provider_func.__name__} failed: {e}")
+    if len(txids) >= 1:
+        logging.warning(f"only one broadcast provider succeeded: {txids}")
+        return next(iter(txids.values()))
+    raise Exception("All broadcast API providers failed.")
 
 
 # --- Targeted Patch for ripemd160 in the 'bit' library ---
@@ -569,7 +568,7 @@ def transact(private_key_string, file_digest):
 
 
 # FIX: Added BLOCKCYPHER_TOKEN to the list of secrets.
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=120)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=180)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
