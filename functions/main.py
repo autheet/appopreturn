@@ -575,7 +575,7 @@ def transact(private_key_string, file_digest):
         outputs=[],
         message=file_digest,
         unspents=unspents,  # Provide the fetched UTXOs directly
-        fee=recommended_fee_sat_per_byte*2  # Set the fee rate
+        fee=recommended_fee_sat_per_byte*3  # Set the fee rate
     )
     tx_hash = broadcast_resiliently(raw_tx_hex)
     return {"tx_hash": tx_hash, 'network': 'testnet3'}
