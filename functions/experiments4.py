@@ -1,5 +1,3 @@
-from posix import cpu_count
-
 import firebase_admin
 from firebase_admin import firestore
 import logging
@@ -23,7 +21,13 @@ from Crypto.Hash import RIPEMD160
 # Import the bitcoinlib library components needed for broadcasting
 from bitcoinlib.services.mempool import MempoolClient
 
+dotenv_path = join(dirname(__file__), '.env')
+load_dotenv(dotenv_path)
 
+os.environ.get("BLOCKCYPHER_TOKEN")
+os.environ.get("COINAPI_API_KEY")
+
+COINAPI_API_KEY = os.environ.get("COINAPI_API_KEY")
 # --- Resilient, Multi-API Data Fetchers with Consensus ---
 
 def get_unspent_from_mempool(address):
@@ -93,9 +97,11 @@ def get_unspent_from_bitaps(address):
 def get_unspent_from_blockcypher(address):
     """Fetches UTXOs from blockcypher.com."""
     print(f"Attempting to fetch UTXOs from blockcypher.com for {address}")
-    # FIX: Added API token handling
-    token = BLOCKCYPHER_TOKEN.value if "BLOCKCYPHER_TOKEN" in globals() and BLOCKCYPHER_TOKEN.value else os.environ.get(
-        "BLOCKCYPHER_TOKEN")
+    try:
+        token = BLOCKCYPHER_TOKEN.value
+    except Exception:
+        token = os.environ.get("BLOCKCYPHER_TOKEN")
+
     url = f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}"
     params = {'unspentOnly': 'true'}
     if token:
@@ -182,6 +188,41 @@ def get_unspent_from_insight(address):
     return unspents
 
 
+def get_unspent_from_coinapi(address):
+    """Fetches UTXOs from coinapi.io."""
+    print(f"Attempting to fetch UTXOs from coinapi.io for {address}")
+    try:
+        api_key = COINAPI_API_KEY
+    except Exception:
+        api_key = os.environ.get("COINAPI_API_KEY")
+
+    if not api_key:
+        raise Exception("CoinAPI key not configured.")
+
+    url = f"https://rest.coinapi.io/v1/addresses/{address}/utxos"
+    headers = {'X-CoinAPI-Key': api_key}
+
+    r = requests.get(url, headers=headers, timeout=5)
+    r.raise_for_status()
+    utxos = r.json()
+
+    unspents = []
+    for utxo in utxos:
+        # CoinAPI value is in BTC, convert to satoshis
+        amount_satoshi = int(decimal.Decimal(utxo['value']) * 100_000_000)
+        # Confirmations are not directly provided, so we'll have to assume 0 for unconfirmed or calculate if block_height is present
+        confirmations = 0  # Defaulting to 0 as it's not provided in the primary UTXO response.
+        if utxo.get('block_height'):
+            # A more robust solution would fetch the current tip height and calculate, but for now, we mark as confirmed if height exists.
+            confirmations = 1  # At least one confirmation
+
+        unspents.append(
+            Unspent(amount_satoshi, confirmations, utxo['script_pub_key_hex'], utxo['transaction_hash'],
+                    utxo['output_index']))
+    print(f"Successfully fetched {len(unspents)} UTXOs from coinapi.io")
+    return unspents
+
+
 def get_unspents_resiliently(address):
     """Tries a list of API providers to fetch UTXOs until one succeeds."""
     providers = [
@@ -190,8 +231,9 @@ def get_unspents_resiliently(address):
         get_unspent_from_bitaps,
         get_unspent_from_blockcypher,
         get_unspent_from_blockstream,
-        # get_unspent_from_sochain, <<- too unreliable, just wastes time
-        get_unspent_from_insight
+        get_unspent_from_sochain,
+        get_unspent_from_insight,
+        get_unspent_from_coinapi  # Added CoinAPI
     ]
     random.shuffle(providers)
     unspentsdict = {}
@@ -274,9 +316,11 @@ def get_fee_from_bitaps():
 def get_fee_from_blockcypher():
     """Fetches recommended fee from blockcypher.com."""
     print("Attempting to fetch fee from blockcypher.com")
-    # FIX: Added API token handling
-    token = BLOCKCYPHER_TOKEN.value if "BLOCKCYPHER_TOKEN" in globals() and BLOCKCYPHER_TOKEN.value else os.environ.get(
-        "BLOCKCYPHER_TOKEN")
+    try:
+        token = BLOCKCYPHER_TOKEN.value
+    except Exception:
+        token = os.environ.get("BLOCKCYPHER_TOKEN")
+
     url = "https://api.blockcypher.com/v1/btc/test3"
     params = {}
     if token:
@@ -358,7 +402,7 @@ def get_fee_with_consensus():
         get_fee_from_bitaps,
         get_fee_from_blockcypher,
         get_fee_from_blockstream,
-        # get_fee_from_sochain, <- too unreliable, just wastes time
+        get_fee_from_sochain,
         get_fee_from_insight
     ]
     random.shuffle(providers)  # Shuffle the providers for better distribution
@@ -422,9 +466,11 @@ def broadcast_with_blockchair(tx_hex):
 def broadcast_with_blockcypher(tx_hex):
     """Broadcasts transaction using blockcypher.com."""
     print("Broadcasting with blockcypher.com...")
-    # FIX: Added API token handling
-    token = BLOCKCYPHER_TOKEN.value if "BLOCKCYPHER_TOKEN" in globals() and BLOCKCYPHER_TOKEN.value else os.environ.get(
-        "BLOCKCYPHER_TOKEN")
+    try:
+        token = BLOCKCYPHER_TOKEN.value
+    except Exception:
+        token = os.environ.get("BLOCKCYPHER_TOKEN")
+
     url = "https://api.blockcypher.com/v1/btc/test3/txs/push"
     if token:
         url += f"?token={token}"
@@ -490,6 +536,32 @@ def broadcast_with_insight(tx_hex):
     raise Exception(f"Insight broadcast failed. Response: {response.text}")
 
 
+def broadcast_with_coinapi(tx_hex):
+    """Broadcasts transaction using coinapi.io."""
+    print("Broadcasting with coinapi.io...")
+    try:
+        api_key = COINAPI_API_KEY
+    except Exception:
+        api_key = os.environ.get("COINAPI_API_KEY")
+
+    if not api_key:
+        raise Exception("CoinAPI key not configured.")
+
+    url = "https://rest.coinapi.io/v1/transactions"
+    headers = {'X-CoinAPI-Key': api_key, 'Accept': 'application/json', 'Content-Type': 'application/json'}
+    payload = {
+        "payload": tx_hex
+    }
+
+    response = requests.post(url, headers=headers, json=payload, timeout=5)
+    response.raise_for_status()
+    data = response.json()
+    txid = data.get('txid')
+    if txid:
+        return txid
+    raise Exception(f"CoinAPI broadcast failed. Response: {response.text}")
+
+
 def broadcast_resiliently(tx_hex):
     """Tries a list of API providers to broadcast a transaction until two succeeds. if only one succeeds, returns it, too with a warning"""
     providers = [
@@ -498,8 +570,9 @@ def broadcast_resiliently(tx_hex):
         broadcast_with_blockcypher,
         broadcast_with_bitaps,
         broadcast_with_blockstream,
-        # broadcast_with_sochain, <- too unreliable, just wastes time
-        broadcast_with_insight
+        broadcast_with_sochain,
+        broadcast_with_insight,
+        broadcast_with_coinapi  # Added CoinAPI
     ]
     random.shuffle(providers)
     txids = {}
@@ -542,9 +615,9 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app()
 
 WALLET_PRIVATE_KEY = SecretParam("WALLET_PRIVATE_KEY")
-## FIX: Define the new secret for the Blockcypher API Token.
 # BLOCKCYPHER_TOKEN = SecretParam("BLOCKCYPHER_TOKEN")
-os.environ.get("BLOCKCYPHER_TOKEN")
+# COINAPI_API_KEY = SecretParam("COINAPI_API_KEY")  # Added CoinAPI Key
+
 
 def transact(private_key_string, file_digest):
     # 1. Load wallet and explicitly check balance before creating transaction
@@ -575,20 +648,19 @@ def transact(private_key_string, file_digest):
         outputs=[],
         message=file_digest,
         unspents=unspents,  # Provide the fetched UTXOs directly
-        fee=recommended_fee_sat_per_byte*3  # Set the fee rate
+        fee=recommended_fee_sat_per_byte * 3  # Set the fee rate
     )
     tx_hash = broadcast_resiliently(raw_tx_hex)
     return {"tx_hash": tx_hash, 'network': 'testnet3'}
 
 
-# FIX: Added BLOCKCYPHER_TOKEN to the list of secrets.
-@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024, timeout_sec=180, cpu=2)
+@https_fn.on_call(secrets=[WALLET_PRIVATE_KEY], enforce_app_check=True, memory=1024,
+                  timeout_sec=180, cpu=2)
 def process_appopreturn_request_free(req: https_fn.CallableRequest) -> dict:
     """
     Handles requests from free users for the testnet blockchain.
     Creates transactions with 'bit' (patched) and broadcasts with 'bitcoinlib'.
     """
-    os.environ.get("BLOCKCYPHER_TOKEN")
     total_start_time = time.time()
     try:
         file_digest = req.data.get("digest")
@@ -650,8 +722,9 @@ def main():
     dotenv_path = join(dirname(__file__), '.env')
     load_dotenv(dotenv_path)
     private_key_string = os.environ.get("LOCAL_WALLET_PRIVATE_KEY")
-    # FIX: Ensure BLOCKCYPHER_TOKEN is loaded from .env for local testing
+    # Ensure API keys are loaded from .env for local testing
     os.environ.get("BLOCKCYPHER_TOKEN")
+    os.environ.get("COINAPI_API_KEY")
     file_digest = f"https://appopreturn.autheet.com"
 
     if not private_key_string:
