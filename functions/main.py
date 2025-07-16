@@ -565,6 +565,18 @@ def transact(private_key_string, file_digest):
     print("Raw transaction hex created.")
 
     # 3. Broadcast transaction resiliently
+    try:
+        tx_hash = broadcast_resiliently(raw_tx_hex)
+        return {"tx_hash": tx_hash, 'network': 'testnet3'}
+    except Exception as e:
+        print(f"Broadcast failed: {e}")
+    print("Increasing fee and retrying...")
+    raw_tx_hex = key.create_transaction(
+        outputs=[],
+        message=file_digest,
+        unspents=unspents,  # Provide the fetched UTXOs directly
+        fee=recommended_fee_sat_per_byte*2  # Set the fee rate
+    )
     tx_hash = broadcast_resiliently(raw_tx_hex)
     return {"tx_hash": tx_hash, 'network': 'testnet3'}
 
