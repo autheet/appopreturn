@@ -59,7 +59,7 @@ def get_unspent_from_mempool(address):
 def get_unspent_from_blockchair(address):
     """Fetches UTXOs from blockchair.com."""
     print(f"Attempting to fetch UTXOs from blockchair.com for {address}")
-    url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=1000"
+    url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=100"
     r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
