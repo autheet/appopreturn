@@ -494,6 +494,7 @@ def broadcast_resiliently(tx_hex):
     """Tries a list of API providers to broadcast a transaction until two succeeds. if only one succeeds, returns it, too with a warning"""
     providers = [
         broadcast_with_mempool,
+        broadcast_with_mempool,
         broadcast_with_blockchair,
         broadcast_with_blockcypher,
         # broadcast_with_bitaps, <- too unreliable, just wastes time
