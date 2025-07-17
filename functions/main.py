@@ -374,13 +374,13 @@ def get_fee_with_consensus():
             logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
 
         if len(fees) >= 2:
-            # If at least two providers succeeded, return the average fee
+            # If at least two providers succeeded, return the chosen fee
             average_fee = int(sum(fees) / len(fees))
             chosen_fee = average_fee // 3
             if chosen_fee < 1:
                 chosen_fee = 1
             print(
-                f"Successfully fetched fees from multiple providers: {fees}. Using average value: {average_fee} sat/vB")
+                f"Successfully fetched fees from multiple providers: {fees}. Using chosen value: {average_fee}//3 sat/vB")
             return chosen_fee
 
     if len(fees) == 1:
