@@ -13,6 +13,7 @@
 # firebase
 .firebase/*
 .firebase
+firebase.json
 
 # secrets
 ios/Runner/GoogleService-Info.plist
