@@ -13,6 +13,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // Get the reCAPTCHA site key from the environment.
@@ -105,7 +106,7 @@ class _AppShellState extends State<AppShell> {
   static const List<Widget> _widgetOptions = <Widget>[
     CreateProofPage(),
     HelpPage(),
-    Text('Settings Page (Not Implemented)'),
+    SettingsPage(),
   ];
 
   Future<void> _launchPrivacyPolicy() async {
@@ -197,6 +198,47 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  PackageInfo _packageInfo = PackageInfo(
+    appName: 'Unknown',
+    packageName: 'Unknown',
+    version: 'Unknown',
+    buildNumber: 'Unknown',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _packageInfo = info;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Text('App Version: ${_packageInfo.version}'),
+          Text('Build Number: ${_packageInfo.buildNumber}'),
+        ],
+      ),
+    );
+  }
+}
 
 class CreateProofPage extends StatefulWidget {
   const CreateProofPage({super.key});
