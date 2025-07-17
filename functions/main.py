@@ -292,7 +292,7 @@ def get_fee_from_blockcypher():
     if fee_per_kb:
         fee_per_byte = fee_per_kb / 1000
         print(f"Got fee from blockcypher.com: {fee_per_byte} sat/vB")
-        return fee_per_byte
+        return fee_per_byte//3
     raise ValueError("Blockcypher API did not return 'low_fee_per_kb'.")
 
 
