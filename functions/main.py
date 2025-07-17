@@ -355,10 +355,10 @@ def get_fee_with_consensus():
     providers = [
         get_fee_from_mempool,
         get_fee_from_blockchair,
-        get_fee_from_bitaps,
+        # get_fee_from_bitaps, #<- too unreliable
         get_fee_from_blockcypher,
         get_fee_from_blockstream,
-        # get_fee_from_sochain, <- too unreliable, just wastes time
+        # get_fee_from_sochain, #<- too unreliable, just wastes time
         get_fee_from_insight
     ]
     random.shuffle(providers)  # Shuffle the providers for better distribution
