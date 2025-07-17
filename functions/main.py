@@ -59,7 +59,7 @@ def get_unspent_from_mempool(address):
 def get_unspent_from_blockchair(address):
     """Fetches UTXOs from blockchair.com."""
     print(f"Attempting to fetch UTXOs from blockchair.com for {address}")
-    url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=1000"
+    url = f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?limit=100"
     r = requests.get(url, timeout=2)
     r.raise_for_status()
     data = r.json().get('data', {})
@@ -187,10 +187,10 @@ def get_unspents_resiliently(address):
     providers = [
         get_unspent_from_mempool,
         get_unspent_from_blockchair,
-        get_unspent_from_bitaps,
+        # get_unspent_from_bitaps, <- too unreliable, just wastes time
         get_unspent_from_blockcypher,
         get_unspent_from_blockstream,
-        get_unspent_from_sochain,
+        # get_unspent_from_sochain, <<- too unreliable, just wastes time
         get_unspent_from_insight
     ]
     random.shuffle(providers)
@@ -292,7 +292,7 @@ def get_fee_from_blockcypher():
     if fee_per_kb:
         fee_per_byte = fee_per_kb / 1000
         print(f"Got fee from blockcypher.com: {fee_per_byte} sat/vB")
-        return fee_per_byte
+        return fee_per_byte//3
     raise ValueError("Blockcypher API did not return 'low_fee_per_kb'.")
 
 
@@ -355,10 +355,10 @@ def get_fee_with_consensus():
     providers = [
         get_fee_from_mempool,
         get_fee_from_blockchair,
-        get_fee_from_bitaps,
+        # get_fee_from_bitaps, #<- too unreliable
         get_fee_from_blockcypher,
         get_fee_from_blockstream,
-        get_fee_from_sochain,
+        # get_fee_from_sochain, #<- too unreliable, just wastes time
         get_fee_from_insight
     ]
     random.shuffle(providers)  # Shuffle the providers for better distribution
@@ -374,13 +374,13 @@ def get_fee_with_consensus():
             logging.warning(f"Fee provider {provider_func.__name__} failed: {e}")
 
         if len(fees) >= 2:
-            # If at least two providers succeeded, return the average fee
+            # If at least two providers succeeded, return the chosen fee
             average_fee = int(sum(fees) / len(fees))
             chosen_fee = average_fee // 3
             if chosen_fee < 1:
                 chosen_fee = 1
             print(
-                f"Successfully fetched fees from multiple providers: {fees}. Using average value: {average_fee} sat/vB")
+                f"Successfully fetched fees from multiple providers: {fees}. Using chosen value: {average_fee}//3 sat/vB")
             return chosen_fee
 
     if len(fees) == 1:
@@ -494,11 +494,12 @@ def broadcast_resiliently(tx_hex):
     """Tries a list of API providers to broadcast a transaction until two succeeds. if only one succeeds, returns it, too with a warning"""
     providers = [
         broadcast_with_mempool,
+        broadcast_with_mempool,
         broadcast_with_blockchair,
         broadcast_with_blockcypher,
-        broadcast_with_bitaps,
+        # broadcast_with_bitaps, <- too unreliable, just wastes time
         broadcast_with_blockstream,
-        broadcast_with_sochain,
+        # broadcast_with_sochain, <- too unreliable, just wastes time
         broadcast_with_insight
     ]
     random.shuffle(providers)

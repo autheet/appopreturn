@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -106,110 +105,87 @@ class _AppShellState extends State<AppShell> {
   static const List<Widget> _widgetOptions = <Widget>[
     CreateProofPage(),
     HelpPage(),
-    Text('My Proofs Page (Not Implemented)'),
- SettingsPage(),
+    Text('Settings Page (Not Implemented)'),
   ];
+
+  Future<void> _launchPrivacyPolicy() async {
+    final uri = Uri.parse('https://appopreturn.autheet.com/privacy_en.html');
+    if (!await launchUrl(uri, webOnlyWindowName: '_blank')) {
+      print('Could not launch $uri');
+    }
+  }
+
+  void _onItemTapped(int index) {
+    // The "Privacy" item is at index 2
+    if (index == 2) {
+      _launchPrivacyPolicy();
+      // Do not change the selected index, as this is an action, not a page change.
+    } else {
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Map the selected index to the correct widget, skipping the action item.
+    final pageIndex = _selectedIndex > 2 ? _selectedIndex - 1 : _selectedIndex;
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Use a threshold to decide which navigation to show
         const double navigationRailThreshold = 600;
 
+        final destinations = [
+          const NavigationRailDestination(
+            icon: Icon(Icons.add_box_outlined),
+            selectedIcon: Icon(Icons.add_box),
+            label: Text('Create Proof'),
+          ),
+          const NavigationRailDestination(
+            icon: Icon(Icons.help_outline),
+            selectedIcon: Icon(Icons.help),
+            label: Text('Help'),
+          ),
+          const NavigationRailDestination(
+            icon: Icon(Icons.shield_outlined),
+            selectedIcon: Icon(Icons.shield),
+            label: Text('Privacy'),
+          ),
+          const NavigationRailDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: Text('Settings'),
+          ),
+        ];
+
         if (constraints.maxWidth < navigationRailThreshold) {
-          // For portrait or narrow screens, use BottomNavigationBar
           return Scaffold(
-            body: Column(
-              children: [
-                Expanded(
-                  child: Center(
-                    child: _widgetOptions.elementAt(_selectedIndex),
-                  ),
-                ),
-                const Footer(),
-              ],
+            body: Center(
+              child: _widgetOptions.elementAt(pageIndex),
             ),
             bottomNavigationBar: BottomNavigationBar(
-              type: BottomNavigationBarType.fixed, // This is the fix
-              items: const <BottomNavigationBarItem>[
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.add_box_outlined),
-                  activeIcon: Icon(Icons.add_box),
-                  label: 'Create Proof',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.help_outline),
-                  activeIcon: Icon(Icons.help),
-                  label: 'Help',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.history_outlined),
-                  activeIcon: Icon(Icons.history),
-                  label: 'My Proofs',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings_outlined),
-                  activeIcon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
+              type: BottomNavigationBarType.fixed,
+              items: destinations.map((d) => BottomNavigationBarItem(icon: d.icon, activeIcon: d.selectedIcon, label: (d.label as Text).data)).toList(),
               currentIndex: _selectedIndex,
-              onTap: (int index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
+              onTap: _onItemTapped,
             ),
           );
         } else {
-          // For landscape or wider screens, use NavigationRail
           return Scaffold(
             body: Row(
               children: <Widget>[
                 NavigationRail(
                   selectedIndex: _selectedIndex,
-                  onDestinationSelected: (int index) {
-                    setState(() {
-                      _selectedIndex = index;
-                    });
-                  },
+                  onDestinationSelected: _onItemTapped,
                   labelType: NavigationRailLabelType.all,
                   leading: Image.asset('web/icons/icon.png', width: 40, height: 40),
-                  destinations: const <NavigationRailDestination>[
-                    NavigationRailDestination(
-                      icon: Icon(Icons.add_box_outlined),
-                      selectedIcon: Icon(Icons.add_box),
-                      label: Text('Create Proof'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.help_outline),
-                      selectedIcon: Icon(Icons.help),
-                      label: Text('Help'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.history_outlined),
-                      selectedIcon: Icon(Icons.history),
-                      label: Text('My Proofs'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.settings_outlined),
-                      selectedIcon: Icon(Icons.settings),
-                      label: Text('Settings'),
-                    ),
-                  ],
+                  destinations: destinations,
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
                 Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: _widgetOptions.elementAt(_selectedIndex),
-                        ),
-                      ),
-                      const Footer(),
-                    ],
+                  child: Center(
+                    child: _widgetOptions.elementAt(pageIndex),
                   ),
                 ),
               ],
@@ -217,50 +193,6 @@ class _AppShellState extends State<AppShell> {
           );
         }
       },
-    );
-  }
-}
-
-class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
-
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  PackageInfo _packageInfo = PackageInfo(
-    appName: 'Unknown',
-    packageName: 'Unknown',
-    version: 'Unknown',
-    buildNumber: 'Unknown',
-    buildSignature: 'Unknown',
-    installerStore: 'Unknown',
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    _initPackageInfo();
-  }
-
-  Future<void> _initPackageInfo() async {
-    final info = await PackageInfo.fromPlatform();
-    setState(() {
-      _packageInfo = info;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text('App Version: ${_packageInfo.version}'),
-          Text('Build Number: ${_packageInfo.buildNumber}'),
-        ],
-      ),
     );
   }
 }
@@ -657,21 +589,6 @@ class CopyableText extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class Footer extends StatelessWidget {
-  const Footer({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: TextButton(
-        onPressed: () => launchUrl(Uri.parse('privacy_en.html')),
-        child: const Text('Privacy Policy'),
-      ),
     );
   }
 }
